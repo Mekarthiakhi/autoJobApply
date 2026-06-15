@@ -10,7 +10,8 @@
     "start": "node dist/app.js",
     "test": "jest",
     "migrate": "tsx src/migrations/run.ts",
-    "test-openai": "node test-openai.js"
+    "test-openai": "node test-openai.js",
+    "install-browsers": "playwright install chromium"
   },
   "keywords": [],
   "author": "",
@@ -30,7 +31,8 @@
     "express-rate-limit": "^7.1.5",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "playwright": "^1.40.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
