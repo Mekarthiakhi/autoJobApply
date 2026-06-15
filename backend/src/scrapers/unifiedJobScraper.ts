@@ -2,6 +2,7 @@ import { linkedinScraper } from './linkedinScraper.js';
 import { naukriScraper } from './naukriScraper.js';
 import { indeedScraper } from './indeedScraper.js';
 import { careerPagesScraper } from './careerPagesScraper.js';
+import { glassdoorScraper } from './glassdoorScraper.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -11,10 +12,11 @@ import { logger } from '../utils/logger.js';
  * - Naukri
  * - Indeed
  * - CareerPages
+ * - Glassdoor
  */
 
 export interface JobScraperResult {
-  platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages';
+  platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages' | 'glassdoor';
   status: 'success' | 'partial' | 'failed';
   jobsFound: number;
   jobs: any[];
@@ -23,7 +25,7 @@ export interface JobScraperResult {
 }
 
 export interface MultiPlatformApplyResult {
-  platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages';
+  platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages' | 'glassdoor';
   jobUrl: string;
   result: {
     success: boolean;
@@ -39,6 +41,7 @@ export class UnifiedJobScraper {
     naukri: naukriScraper,
     indeed: indeedScraper,
     careerpages: careerPagesScraper,
+    glassdoor: glassdoorScraper,
   };
 
   /**
@@ -47,7 +50,7 @@ export class UnifiedJobScraper {
   async searchAllPlatforms(
     keywords: string[],
     location: string = '',
-    platforms: Array<'linkedin' | 'naukri' | 'indeed' | 'careerpages'> = ['linkedin', 'naukri', 'indeed', 'careerpages']
+    platforms: Array<'linkedin' | 'naukri' | 'indeed' | 'careerpages' | 'glassdoor'> = ['linkedin', 'naukri', 'indeed', 'careerpages', 'glassdoor']
   ): Promise<JobScraperResult[]> {
     logger.info(`🔍 Starting multi-platform job search for: ${keywords.join(', ')}`);
     logger.info(`📍 Location: ${location || 'Remote'}`);
@@ -76,7 +79,7 @@ export class UnifiedJobScraper {
    * Search a specific platform
    */
   private async searchPlatform(
-    platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages',
+    platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages' | 'glassdoor',
     keywords: string[],
     location: string
   ): Promise<JobScraperResult> {
@@ -119,7 +122,7 @@ export class UnifiedJobScraper {
    * Apply to a job on a specific platform
    */
   async applyToJob(
-    platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages',
+    platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages' | 'glassdoor',
     jobUrl: string,
     userProfile: any
   ): Promise<MultiPlatformApplyResult> {
@@ -201,6 +204,11 @@ export class UnifiedJobScraper {
         configured: true, // CareerPages doesn't require login for basic search
         capabilities: ['job_search', 'auto_apply', 'company_profiles', 'skill_matching'],
       },
+      {
+        platform: 'glassdoor',
+        configured: !!process.env.GLASSDOOR_EMAIL && !!process.env.GLASSDOOR_PASSWORD,
+        capabilities: ['job_search', 'auto_apply', 'company_reviews', 'salary_insights'],
+      },
     ];
   }
 
@@ -216,6 +224,7 @@ export class UnifiedJobScraper {
         naukriScraper.closeBrowser(),
         indeedScraper.closeBrowser(),
         careerPagesScraper.closeBrowser(),
+        glassdoorScraper.closeBrowser(),
       ]);
 
       logger.info('✅ All browsers closed successfully');
