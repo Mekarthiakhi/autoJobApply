@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: job_automation_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install backend dependencies
+      run: cd backend && npm ci
+    
+    - name: Build backend
+      run: cd backend && npm run build
+    
+    - name: Run backend tests
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: job_automation_test
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+      run: cd backend && npm test
+    
+    - name: Install frontend dependencies
+      run: cd frontend && npm ci
+    
+    - name: Build frontend
+      run: cd frontend && npm run build
