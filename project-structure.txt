@@ -1,0 +1,123 @@
+ai-job-automation/
+├── backend/
+│   ├── src/
+│   │   ├── config/
+│   │   │   ├── database.ts
+│   │   │   ├── env.ts
+│   │   │   └── openai.ts
+│   │   ├── models/
+│   │   │   ├── User.ts
+│   │   │   ├── Resume.ts
+│   │   │   ├── Job.ts
+│   │   │   ├── Application.ts
+│   │   │   ├── MatchScore.ts
+│   │   │   └── AutomationSettings.ts
+│   │   ├── controllers/
+│   │   │   ├── authController.ts
+│   │   │   ├── jobController.ts
+│   │   │   ├── applicationController.ts
+│   │   │   ├── dashboardController.ts
+│   │   │   └── settingsController.ts
+│   │   ├── services/
+│   │   │   ├── jobDiscoveryService.ts
+│   │   │   ├── aiMatchingService.ts
+│   │   │   ├── telegramService.ts
+│   │   │   ├── applicationService.ts
+│   │   │   └── resumeService.ts
+│   │   ├── repositories/
+│   │   │   ├── userRepository.ts
+│   │   │   ├── jobRepository.ts
+│   │   │   ├── applicationRepository.ts
+│   │   │   └── matchScoreRepository.ts
+│   │   ├── scrapers/
+│   │   │   ├── linkedinScraper.ts
+│   │   │   ├── naukriScraper.ts
+│   │   │   ├── indeedScraper.ts
+│   │   │   └── careerPagesScraper.ts
+│   │   ├── middleware/
+│   │   │   ├── auth.ts
+│   │   │   ├── errorHandler.ts
+│   │   │   └── rateLimiter.ts
+│   │   ├── routes/
+│   │   │   ├── auth.ts
+│   │   │   ├── jobs.ts
+│   │   │   ├── applications.ts
+│   │   │   ├── dashboard.ts
+│   │   │   └── settings.ts
+│   │   ├── jobs/
+│   │   │   ├── jobDiscoveryJob.ts
+│   │   │   ├── aiMatchingJob.ts
+│   │   │   └── dailySummaryJob.ts
+│   │   ├── utils/
+│   │   │   ├── logger.ts
+│   │   │   ├── jwt.ts
+│   │   │   └── encryption.ts
+│   │   └── app.ts
+│   ├── .env.example
+│   ├── tsconfig.json
+│   ├── package.json
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Dashboard/
+│   │   │   │   ├── Dashboard.tsx
+│   │   │   │   ├── StatsCard.tsx
+│   │   │   │   └── Dashboard.module.css
+│   │   │   ├── Jobs/
+│   │   │   │   ├── JobsTable.tsx
+│   │   │   │   ├── JobCard.tsx
+│   │   │   │   └── Jobs.module.css
+│   │   │   ├── Applications/
+│   │   │   │   ├── ApplicationsList.tsx
+│   │   │   │   ├── ApplicationCard.tsx
+│   │   │   │   └── Applications.module.css
+│   │   │   ├── Settings/
+│   │   │   │   ├── Settings.tsx
+│   │   │   │   ├── ResumeUpload.tsx
+│   │   │   │   └── Settings.module.css
+│   │   │   ├── Auth/
+│   │   │   │   ├── Login.tsx
+│   │   │   │   ├── Register.tsx
+│   │   │   │   └── Auth.module.css
+│   │   │   ├── Common/
+│   │   │   │   ├── Navbar.tsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   ├── GlassCard.tsx
+│   │   │   │   └── Common.module.css
+│   │   ├── pages/
+│   │   │   ├── Home.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Jobs.tsx
+│   │   │   ├── Applications.tsx
+│   │   │   ├── Settings.tsx
+│   │   │   └── Login.tsx
+│   │   ├── api/
+│   │   │   ├── auth.ts
+│   │   │   ├── jobs.ts
+│   │   │   ├── applications.ts
+│   │   │   └── dashboard.ts
+│   │   ├── hooks/
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useJobs.ts
+│   │   │   └── useApplications.ts
+│   │   ├── styles/
+│   │   │   ├── globals.css
+│   │   │   ├── glassmorphism.css
+│   │   │   └── animations.css
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── vite-env.d.ts
+│   ├── .env.example
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── package.json
+│   └── index.html
+├── docker-compose.yml
+├── .github/
+│   └── workflows/
+│       ├── deploy.yml
+│       └── test.yml
+├── .gitignore
+├── README.md
+└── docker-compose.yml
