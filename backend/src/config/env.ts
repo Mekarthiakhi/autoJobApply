@@ -9,6 +9,7 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET || 'your-secret-key',
   JWT_EXPIRE: process.env.JWT_EXPIRE || '7d',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
   TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || '',
   RESUME_MAX_SIZE: 5 * 1024 * 1024, // 5MB

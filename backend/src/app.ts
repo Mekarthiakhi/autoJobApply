@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -34,15 +35,12 @@ app.use(errorHandler);
 
 // Start server
 async function startServer() {
-  try {
-    await initializeDatabase();
-    app.listen(env.PORT, () => {
-      logger.info(`🚀 Server running on port ${env.PORT}`);
-    });
-  } catch (error) {
-    logger.error('Failed to start server', error);
-    process.exit(1);
-  }
+  // initializeDatabase handles its own errors gracefully
+  await initializeDatabase();
+  
+  app.listen(env.PORT, () => {
+    logger.info(`🚀 Server running on port ${env.PORT}`);
+  });
 }
 
 // Graceful shutdown

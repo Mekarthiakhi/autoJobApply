@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useJobs } from '../../hooks/useJobs';
-import './Jobs.module.css';
+import './Jobs.css';
 
 export const JobsTable: React.FC = () => {
   const { jobs, loading, fetchJobs } = useJobs();

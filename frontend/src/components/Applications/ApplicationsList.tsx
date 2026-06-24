@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { applicationsAPI } from '../../api/auth';
-import './Applications.module.css';
+import './Applications.css';
 
 export const ApplicationsList: React.FC = () => {
   const [applications, setApplications] = useState([]);
@@ -31,10 +31,10 @@ export const ApplicationsList: React.FC = () => {
   };
 
   return (
-    <div className="applications-container glass-dark">
-      <h1 className="apps-title">My Applications</h1>
+    <div className="applications-container glass-dark fade-in">
+      <h1 className="apps-title slide-in-left">My Applications</h1>
       
-      <div className="apps-stats">
+      <div className="apps-stats slide-in-right">
         <div className="stat-item glass">
           <span className="stat-label">Applied</span>
           <span className="stat-value">{stats.applied}</span>

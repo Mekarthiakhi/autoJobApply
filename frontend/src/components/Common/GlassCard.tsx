@@ -1,5 +1,5 @@
 import React from 'react';
-import './GlassCard.module.css';
+import './GlassCard.css';
 
 interface GlassCardProps {
   children: React.ReactNode;

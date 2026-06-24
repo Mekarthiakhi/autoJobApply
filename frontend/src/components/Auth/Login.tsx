@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import './Auth.module.css';
+import './Auth.css';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -16,9 +16,9 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="auth-container">
+    <div className="auth-container fade-in">
       <div className="auth-form glass">
-        <h1 className="gradient-text">Welcome Back</h1>
+        <h1 className="gradient-text slide-in-right">Welcome Back</h1>
         <p className="auth-subtitle">Sign in to your account</p>
 
         <form onSubmit={handleSubmit}>

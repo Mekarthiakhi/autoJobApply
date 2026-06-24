@@ -1,14 +1,26 @@
-@import './glassmorphism.css';
-@import './animations.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-html, body, #root {
-  height: 100%;
-  width: 100%;
+@layer base {
+  body {
+    @apply bg-space-dark text-white font-sans antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  .solid-card {
+    @apply bg-card-bg rounded-2xl relative overflow-hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
 }
 
 #root {
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
 main {
@@ -23,7 +35,7 @@ main {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 ::-webkit-scrollbar-thumb {

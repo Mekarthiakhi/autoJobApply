@@ -25,9 +25,10 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     ports:
       - "5000:5000"
     depends_on:
@@ -37,9 +38,10 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
-    environment:
-      VITE_API_URL: http://localhost:5000/api
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:5000/api
     ports:
       - "3000:3000"
     depends_on:
@@ -54,3 +56,4 @@ volumes:
 networks:
   job-automation:
     driver: bridge
+
