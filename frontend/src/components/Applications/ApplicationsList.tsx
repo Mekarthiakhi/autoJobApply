@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { applicationsAPI } from '../../api/auth';
-import './Applications.css';
+import { Building, Calendar, RefreshCw } from 'lucide-react';
+import styles from './Applications.module.css';
+
 
 export const ApplicationsList: React.FC = () => {
   const [applications, setApplications] = useState<any[]>([]);
