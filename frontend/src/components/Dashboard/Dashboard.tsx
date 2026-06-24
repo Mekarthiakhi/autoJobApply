@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { dashboardAPI } from '../../api/auth';
 import StatsCard from './StatsCard';
-import './Dashboard.module.css';
+import styles from './Dashboard.module.css';
 
 export const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({
@@ -29,12 +29,12 @@ export const Dashboard: React.FC = () => {
     fetchDashboard();
   }, []);
 
-  if (loading) return <div className="dashboard-loading">Loading...</div>;
+  if (loading) return <div className={styles.dashboardLoading}>Loading...</div>;
 
   return (
-    <div className="dashboard glass-dark">
-      <h1 className="dashboard-title">Dashboard</h1>
-      <div className="stats-grid">
+    <div className={`${styles.dashboard} glass-dark`}>
+      <h1 className={styles.dashboardTitle}>Dashboard</h1>
+      <div className={styles.statsGrid}>
         <StatsCard
           icon="🔍"
           label="Jobs Found"

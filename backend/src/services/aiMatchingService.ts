@@ -2,8 +2,12 @@ import { OpenAI } from 'openai';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
+const isGemini = (env.GEMINI_API_KEY && env.GEMINI_API_KEY.startsWith('AIzaSy')) || 
+                 (env.OPENAI_API_KEY && env.OPENAI_API_KEY.startsWith('AIzaSy'));
+
 const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
+  apiKey: isGemini ? (env.GEMINI_API_KEY || env.OPENAI_API_KEY) : env.OPENAI_API_KEY,
+  baseURL: isGemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : undefined,
 });
 
 export interface MatchResult {
@@ -45,7 +49,7 @@ Respond only with valid JSON.
 `;
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: isGemini ? 'gemini-1.5-flash' : 'gpt-3.5-turbo',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
       });
@@ -53,7 +57,10 @@ Respond only with valid JSON.
       const content = response.choices[0].message.content;
       if (!content) throw new Error('No response from OpenAI');
 
-      const result = JSON.parse(content);
+      // Strip potential markdown JSON code block ticks (```json ... ```)
+      const cleanContent = content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+
+      const result = JSON.parse(cleanContent);
       return {
         score: result.match_score,
         missingSkills: result.missing_skills || [],

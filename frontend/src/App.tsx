@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import JobsTable from './components/Jobs/JobsTable';
 import ApplicationsList from './components/Applications/ApplicationsList';
 import Settings from './components/Settings/Settings';
+import Layout from './components/Common/Layout';
 import './styles/globals.css';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -27,7 +28,9 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Layout>
+                <Dashboard />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -35,7 +38,9 @@ function App() {
           path="/jobs"
           element={
             <ProtectedRoute>
-              <JobsTable />
+              <Layout>
+                <JobsTable />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -43,7 +48,9 @@ function App() {
           path="/applications"
           element={
             <ProtectedRoute>
-              <ApplicationsList />
+              <Layout>
+                <ApplicationsList />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -51,7 +58,9 @@ function App() {
           path="/settings"
           element={
             <ProtectedRoute>
-              <Settings />
+              <Layout>
+                <Settings />
+              </Layout>
             </ProtectedRoute>
           }
         />

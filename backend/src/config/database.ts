@@ -38,7 +38,7 @@ export async function initializeDatabase() {
   await sql`
     CREATE TABLE IF NOT EXISTS resumes (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
       file_name VARCHAR(255),
       file_path VARCHAR(255),
       text_content TEXT,
@@ -50,6 +50,15 @@ export async function initializeDatabase() {
       updated_at TIMESTAMP DEFAULT NOW()
     );
   `;
+
+  // Try to add UNIQUE constraint if resumes table already existed without it
+  try {
+    await sql`
+      ALTER TABLE resumes ADD CONSTRAINT resumes_user_id_key UNIQUE (user_id);
+    `;
+  } catch (error) {
+    // Ignore error if constraint already exists
+  }
 
   await sql`
     CREATE TABLE IF NOT EXISTS jobs (
@@ -134,14 +143,12 @@ export async function initializeDatabase() {
     );
   `;
 
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-    CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
-    CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source);
-    CREATE INDEX IF NOT EXISTS idx_match_scores_user_id ON match_scores(user_id);
-    CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id);
-    CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_match_scores_user_id ON match_scores(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`;
 
   console.log('✅ Database initialized successfully');
 }

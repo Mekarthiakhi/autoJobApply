@@ -78,6 +78,248 @@
   color: white;
 }
 
+.jobsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.searchBar {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  max-width: 400px;
+}
+
+.searchBar input {
+  flex: 1;
+}
+
+.locationCol {
+  display: flex;
+  align-items: center;
+}
+
+.noJobs {
+  padding: 32px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+
+/* Modal Styling */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 24px;
+  backdrop-filter: blur(6px);
+}
+
+.modalContent {
+  width: 100%;
+  max-width: 700px;
+  max-height: 85vh;
+  border-radius: 16px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.closeBtn {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.closeBtn:hover {
+  color: white;
+}
+
+.modalHeader {
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.modalCompany {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #818cf8;
+  letter-spacing: 1.5px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.modalHeader h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 10px;
+}
+
+.modalMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.modalMeta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  padding-right: 8px;
+  flex: 1;
+}
+
+.aiCard {
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.aiHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sparkleIcon {
+  color: #f59e0b;
+}
+
+.aiHeader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  flex: 1;
+}
+
+.aiDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skillsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skillsSection strong {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.skillsTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.matchingTag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.missingTag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.strengthsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.strengthsSection strong {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.strengthsSection ul {
+  padding-left: 20px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jobDesc {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+}
+
+.jobDesc h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 8px;
+}
+
+.jobDesc p {
+  white-space: pre-line;
+}
+
+.modalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 16px;
+  flex-shrink: 0;
+}
+
+.statusMessage {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 14px;
+}
+
 @media (max-width: 1024px) {
   .tableHeader,
   .tableRow {

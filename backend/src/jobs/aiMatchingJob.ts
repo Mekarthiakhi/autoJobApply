@@ -14,24 +14,33 @@ export function startAIMatchingJob() {
     try {
       const sql = getDatabase();
       
-      // Get unmatched jobs
+      // Get jobs that have not been matched for at least one user with a resume
       const unmatchedJobs = await sql`
-        SELECT j.*, r.text_content
+        SELECT DISTINCT j.*
         FROM jobs j
-        LEFT JOIN resumes r ON true
-        LEFT JOIN match_scores ms ON j.id = ms.job_id
+        CROSS JOIN users u
+        JOIN resumes r ON u.id = r.user_id
+        LEFT JOIN match_scores ms ON j.id = ms.job_id AND ms.user_id = u.id
         WHERE ms.id IS NULL
         LIMIT 10
       `;
 
       for (const job of unmatchedJobs) {
         try {
-          const users = await sql`SELECT id FROM users LIMIT 10`;
+          // Get all users who don't have a match score for this job and have a resume
+          const usersToMatch = await sql`
+            SELECT u.id, r.text_content
+            FROM users u
+            JOIN resumes r ON u.id = r.user_id
+            LEFT JOIN match_scores ms ON ms.job_id = ${job.id} AND ms.user_id = u.id
+            WHERE ms.id IS NULL
+          `;
           
-          for (const user of users) {
-            if (job.text_content) {
+          for (const user of usersToMatch) {
+            if (user.text_content) {
+              logger.info(`🤖 Analyzing match for user ${user.id} and job ${job.id}`);
               const result = await aiMatchingService.analyzeJobMatch(
-                job.text_content,
+                user.text_content,
                 job.job_description,
                 job.title,
                 job.required_skills
@@ -49,7 +58,7 @@ export function startAIMatchingJob() {
             }
           }
         } catch (error) {
-          logger.error('AI matching error for job', error);
+          logger.error(`AI matching error for job ${job.id}`, error);
         }
       }
 

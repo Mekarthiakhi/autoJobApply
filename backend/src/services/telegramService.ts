@@ -29,7 +29,7 @@ export class TelegramService {
 <b>${job.title}</b>
 Company: ${job.company_name}
 Location: ${job.location}
-Match Score: ${job.matchScore}%
+Match Score: ${job.match_score ?? job.matchScore ?? 0}%
 
 <a href="${job.apply_url}">View Job</a>
     `;
@@ -40,11 +40,11 @@ Match Score: ${job.matchScore}%
     const message = `
 📊 <b>Daily Job Search Summary</b>
 
-Jobs Found: ${stats.jobsFound}
-High Matches (90%+): ${stats.highMatches}
-Applications: ${stats.applications}
-Interviews: ${stats.interviews}
-Offers: ${stats.offers}
+Jobs Found: ${stats.jobs_found ?? stats.jobsFound ?? 0}
+High Matches (90%+): ${stats.high_matches ?? stats.highMatches ?? 0}
+Applications: ${stats.applications ?? 0}
+Interviews: ${stats.interviews ?? 0}
+Offers: ${stats.offers ?? 0}
 
 Keep up the great work! 🚀
     `;
