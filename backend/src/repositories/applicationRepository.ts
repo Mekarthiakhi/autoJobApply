@@ -64,8 +64,18 @@ export class ApplicationRepository {
       throw new Error('Application not found');
     }
     const sql = getDatabase();
+    const isInterview = status === 'interview';
+    const isRejected = status === 'rejected';
+    const isOffer = status === 'offer';
+
     const result = await sql`
-      UPDATE applications SET status = ${status}, updated_at = NOW()
+      UPDATE applications 
+      SET 
+        status = ${status}, 
+        interview_scheduled = ${isInterview},
+        rejected = ${isRejected},
+        offer_received = ${isOffer},
+        updated_at = NOW()
       WHERE id = ${applicationId}
       RETURNING *
     `;

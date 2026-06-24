@@ -10,6 +10,10 @@ import authRoutes from './routes/auth.js';
 import jobRoutes from './routes/jobs.js';
 import applicationRoutes from './routes/applications.js';
 import dashboardRoutes from './routes/dashboard.js';
+import resumeRoutes from './routes/resumes.js';
+import { startJobDiscoveryJob } from './jobs/jobDiscoveryJob.js';
+import { startAIMatchingJob } from './jobs/aiMatchingJob.js';
+import { startDailySummaryJob } from './jobs/dailySummaryJob.js';
 import { logger } from './utils/logger.js';
 
 const app: Express = express();
@@ -29,6 +33,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/resumes', resumeRoutes);
 
 // Error handler
 app.use(errorHandler);

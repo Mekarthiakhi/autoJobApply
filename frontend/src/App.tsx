@@ -32,7 +32,9 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Layout>
+                <Dashboard />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -40,7 +42,9 @@ function App() {
           path="/jobs"
           element={
             <ProtectedRoute>
-              <JobsTable />
+              <Layout>
+                <JobsTable />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -48,7 +52,9 @@ function App() {
           path="/applications"
           element={
             <ProtectedRoute>
-              <ApplicationsList />
+              <Layout>
+                <ApplicationsList />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -56,7 +62,9 @@ function App() {
           path="/settings"
           element={
             <ProtectedRoute>
-              <Settings />
+              <Layout>
+                <Settings />
+              </Layout>
             </ProtectedRoute>
           }
         />

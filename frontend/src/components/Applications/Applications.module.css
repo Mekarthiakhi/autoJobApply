@@ -97,6 +97,11 @@
   color: #10b981;
 }
 
+.statusPending {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+}
+
 .appDetails {
   font-size: 14px;
   color: #64748b;
