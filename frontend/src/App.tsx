@@ -8,6 +8,7 @@ import JobsTable from './components/Jobs/JobsTable';
 import ApplicationsList from './components/Applications/ApplicationsList';
 import Companies from './components/Companies/Companies';
 import ResumeManager from './components/Resume/ResumeManager';
+import Analytics from './components/Analytics/Analytics';
 import Settings from './components/Settings/Settings';
 import Layout from './components/Common/Layout';
 import './styles/globals.css';
@@ -76,6 +77,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <ResumeManager />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Analytics />
               </Layout>
             </ProtectedRoute>
           }
