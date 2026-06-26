@@ -1,19 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  * {
+    @apply transition-all duration-300;
+  }
+
   body {
-    @apply bg-space-dark text-white font-sans antialiased;
+    @apply bg-neumo-bg text-white font-sans antialiased;
     min-height: 100vh;
     overflow-x: hidden;
+    background: linear-gradient(135deg, #0A0D14 0%, #0F1219 50%, #141A24 100%);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  /* Neumorphism Card - Raised */
+  .neumo-card {
+    @apply bg-neumo-surface rounded-2xl;
+    box-shadow: 8px 8px 16px rgba(0, 0, 0, 0.4), -2px -2px 8px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Neumorphism Button - Raised */
+  .neumo-btn {
+    @apply px-6 py-3 rounded-xl font-medium cursor-pointer;
+    @apply bg-neumo-surface text-white;
+    box-shadow: 5px 5px 12px rgba(0, 0, 0, 0.3), -3px -3px 8px rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .neumo-btn:hover {
+    box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.3), -1px -1px 4px rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .neumo-btn:active {
+    box-shadow: inset 3px 3px 8px rgba(0, 0, 0, 0.3), inset -1px -1px 4px rgba(255, 255, 255, 0.05);
+    transform: translateY(0);
+  }
+
+  /* Neumorphism Input */
+  .neumo-input {
+    @apply w-full px-4 py-3 rounded-xl;
+    @apply bg-neumo-surface text-white font-medium;
+    @apply placeholder-gray-500 focus:outline-none;
+    box-shadow: inset 3px 3px 8px rgba(0, 0, 0, 0.3), inset -1px -1px 4px rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.3s ease;
+  }
+
+  .neumo-input:focus {
+    border-color: rgba(79, 142, 247, 0.3);
+    box-shadow: inset 3px 3px 8px rgba(0, 0, 0, 0.3), inset -1px -1px 4px rgba(255, 255, 255, 0.05), 0 0 20px rgba(79, 142, 247, 0.2);
+  }
+
+  /* Status Pills */
+  .status-badge {
+    @apply px-4 py-1.5 rounded-full text-sm font-semibold inline-block;
+  }
+
+  .status-badge.applied {
+    @apply bg-accent-primary/20 text-accent-primary;
+  }
+
+  .status-badge.pending {
+    @apply bg-accent-warning/20 text-accent-warning;
+  }
+
+  .status-badge.success {
+    @apply bg-accent-success/20 text-accent-success;
+  }
+
+  .status-badge.error {
+    @apply bg-accent-error/20 text-accent-error;
+  }
+
+  /* KPI Number */
+  .kpi-value {
+    @apply font-display font-bold text-5xl text-white;
+  }
+
+  .kpi-label {
+    @apply text-gray-400 text-xs font-semibold uppercase tracking-wider;
+  }
+
+  /* Solid Card - Legacy */
+  .solid-card {
+    @apply bg-neumo-surface rounded-2xl relative overflow-hidden neumo-card;
+  }
+
+  /* Gradient Text */
+  .gradient-text {
+    background: linear-gradient(135deg, #4F8EF7 0%, #10B981 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
 
 @layer utilities {
-  .solid-card {
-    @apply bg-card-bg rounded-2xl relative overflow-hidden;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  .backdrop-blur-xs {
+    backdrop-filter: blur(2px);
   }
 }
 
@@ -35,14 +132,76 @@ main {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.4);
-  border-radius: 4px;
+  background: rgba(79, 142, 247, 0.3);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.6);
+  background: rgba(79, 142, 247, 0.5);
+  background-clip: padding-box;
+}
+
+/* Animations */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(79, 142, 247, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(79, 142, 247, 0.6);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 142, 247, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(79, 142, 247, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 142, 247, 0);
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.6s ease-out;
+}
+
+.slide-in-right {
+  animation: slide-in-right 0.6s ease-out;
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.ripple {
+  animation: ripple 0.6s ease-out;
 }

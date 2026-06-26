@@ -6,6 +6,7 @@ import Register from './components/Auth/Register';
 import Dashboard from './components/Dashboard/Dashboard';
 import JobsTable from './components/Jobs/JobsTable';
 import ApplicationsList from './components/Applications/ApplicationsList';
+import Companies from './components/Companies/Companies';
 import Settings from './components/Settings/Settings';
 import Layout from './components/Common/Layout';
 import './styles/globals.css';
@@ -54,6 +55,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <ApplicationsList />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/companies"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Companies />
               </Layout>
             </ProtectedRoute>
           }

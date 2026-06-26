@@ -2,7 +2,7 @@
   display: flex;
   min-height: 100vh;
   width: 100vw;
-  background: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #1e1b4b 100%) !important;
+  background: linear-gradient(135deg, #0A0D14 0%, #0F1219 50%, #141A24 100%) !important;
   overflow: hidden;
 }
 
@@ -15,6 +15,7 @@
   height: 100vh;
   z-index: 10;
   flex-shrink: 0;
+  background: linear-gradient(180deg, #111827 0%, #0F1219 100%);
 }
 
 .logoContainer {
@@ -27,6 +28,10 @@
   font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #4F8EF7 0%, #10B981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .navigation {
@@ -41,24 +46,29 @@
   align-items: center;
   gap: 14px;
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: 12px;
   color: rgba(255, 255, 255, 0.65);
   text-decoration: none;
   font-weight: 500;
   font-size: 15px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(79, 142, 247, 0.08);
   color: #ffffff;
   transform: translateX(4px);
+  box-shadow: inset 2px 2px 4px rgba(255, 255, 255, 0.05);
 }
 
 .active {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+  background: rgba(79, 142, 247, 0.15);
+  color: #4F8EF7;
+  box-shadow: 5px 5px 12px rgba(0, 0, 0, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.05),
+              inset 0 0 0 1px rgba(79, 142, 247, 0.2);
+  border-left: 3px solid #4F8EF7;
+  padding-left: 13px;
 }
 
 .footer {
@@ -73,9 +83,9 @@
   align-items: center;
   gap: 14px;
   padding: 12px 16px;
-  border-radius: 10px;
-  background: transparent;
-  border: none;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   color: #ef4444;
   font-weight: 500;
   font-size: 15px;
@@ -85,9 +95,10 @@
 }
 
 .logoutBtn:hover {
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(239, 68, 68, 0.12);
   color: #f87171;
-  transform: translateX(4px);
+  transform: translateY(-2px);
+  box-shadow: 5px 5px 12px rgba(0, 0, 0, 0.3);
 }
 
 .mainWrapper {

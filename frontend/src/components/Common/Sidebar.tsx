@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, FileCheck, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileCheck, Building2, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './Common.module.css';
 
@@ -42,6 +42,14 @@ export const Sidebar: React.FC = () => {
         >
           <FileCheck size={20} />
           <span>Applications</span>
+        </NavLink>
+        
+        <NavLink 
+          to="/companies" 
+          className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
+        >
+          <Building2 size={20} />
+          <span>Companies</span>
         </NavLink>
         
         <NavLink 
