@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import JobsTable from './components/Jobs/JobsTable';
 import ApplicationsList from './components/Applications/ApplicationsList';
 import Companies from './components/Companies/Companies';
+import ResumeManager from './components/Resume/ResumeManager';
 import Settings from './components/Settings/Settings';
 import Layout from './components/Common/Layout';
 import './styles/globals.css';
@@ -65,6 +66,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Companies />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/resume"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ResumeManager />
               </Layout>
             </ProtectedRoute>
           }
