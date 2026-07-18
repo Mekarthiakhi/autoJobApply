@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import './Auth.css';
+import styles from './Auth.module.css';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -61,9 +62,9 @@ export const Login: React.FC = () => {
             {loading ? (
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <div className="loading" style={{ width: '18px', height: '18px', borderWidth: '2px', borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', borderStyle: 'solid', animation: 'spin 1s linear infinite' }}></div>
-                Signing in...
+                Logging in...
               </span>
-            ) : 'Sign In'}
+            ) : 'Login'}
           </button>
         </form>
 

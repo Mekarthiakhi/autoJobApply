@@ -8,6 +8,7 @@ export const env = {
   DB_NAME: process.env.DB_NAME || 'job_automation',
   DB_USER: process.env.DB_USER || 'postgres',
   DB_PASSWORD: process.env.DB_PASSWORD || 'postgres',
+  DB_SSL: process.env.DB_SSL === 'true',
   JWT_SECRET: process.env.JWT_SECRET || 'your-secret-key',
   JWT_EXPIRE: process.env.JWT_EXPIRE || '7d',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',

@@ -43,4 +43,17 @@ export const dashboardAPI = {
   getDashboard: () => client.get('/dashboard'),
 };
 
+export const resumeAPI = {
+  uploadResume: (formData: FormData) => client.post('/resumes/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  getResume: () => client.get('/resumes'),
+};
+
+export const analyticsAPI = {
+  getAnalytics: () => client.get('/analytics'),
+};
+
 export default client;

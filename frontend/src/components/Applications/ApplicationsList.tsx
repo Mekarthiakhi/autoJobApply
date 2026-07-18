@@ -1,13 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { applicationsAPI } from '../../api/auth';
-import { Building, Calendar, RefreshCw } from 'lucide-react';
-import styles from './Applications.module.css';
-
 
 export const ApplicationsList: React.FC = () => {
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchApplications = async () => {
     try {
@@ -25,29 +21,6 @@ export const ApplicationsList: React.FC = () => {
     fetchApplications();
   }, []);
 
-  const handleUpdateStatus = async (appId: string, currentStatus: string) => {
-    const statuses = ['pending', 'applied', 'interview', 'rejected', 'offer'];
-    const currentIndex = statuses.indexOf(currentStatus);
-    const nextIndex = (currentIndex + 1) % statuses.length;
-    const nextStatus = statuses[nextIndex];
-
-    try {
-      setUpdatingId(appId);
-      await applicationsAPI.updateStatus(appId, nextStatus);
-      // Update local state directly
-      setApplications(prev => 
-        prev.map(app => app.id === appId ? { ...app, status: nextStatus } : app)
-      );
-    } catch (error) {
-      console.error('Failed to update status', error);
-      alert('Failed to update application status.');
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  if (loading && applications.length === 0) return <div className={styles.appsLoading}>Loading applications...</div>;
-
   const stats = {
     applied: applications.filter((a: any) => a.status === 'applied' || a.status === 'pending').length,
     interviews: applications.filter((a: any) => a.status === 'interview').length,
@@ -55,77 +28,94 @@ export const ApplicationsList: React.FC = () => {
     offers: applications.filter((a: any) => a.status === 'offer').length,
   };
 
+  const getStatusClass = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'applied': return 's-applied';
+      case 'interview': return 's-interview';
+      case 'rejected': return 's-rejected';
+      case 'offer': return 's-offer';
+      case 'pending': return 's-pending';
+      default: return 's-applied';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (!status) return 'Applied';
+    if (status.toLowerCase() === 'interview') return 'Interview scheduled';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const getLogoColor = (companyName: string) => {
+    if (!companyName) return { bg: 'rgba(255,255,255,0.1)', color: '#FFFFFF' };
+    const hash = companyName.length;
+    const colors = [
+      { bg: 'rgba(0,119,255,0.12)', color: '#60A5FA' },
+      { bg: 'rgba(255,165,0,0.12)', color: '#FBBF24' },
+      { bg: 'rgba(108,99,255,0.15)', color: '#A5A0FF' },
+      { bg: 'rgba(74,222,128,0.1)', color: '#4ADE80' },
+    ];
+    return colors[hash % colors.length];
+  };
+
+  if (loading && applications.length === 0) {
+    return (
+      <div className="flex justify-center items-center h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6C63FF]"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="applications-container glass-dark fade-in">
-      <h1 className="apps-title slide-in-left">My Applications</h1>
+    <div className="content fade-in">
+      <div className="section-header">
+        <div>
+          <div className="section-title">My Applications</div>
+          <div className="section-sub">{applications.length} total · {stats.interviews} active · Updated just now</div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="status-pill s-applied" style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px' }}>Applied</div>
+          <div className="status-pill s-interview" style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px' }}>Interviews</div>
+          <div className="status-pill s-rejected" style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px' }}>Rejected</div>
+        </div>
+      </div>
       
-      <div className="apps-stats slide-in-right">
-        <div className="stat-item glass">
-          <span className="stat-label">Applied</span>
-          <span className="stat-value">{stats.applied}</span>
-        </div>
-        <div className={`${styles.statItem} glass`}>
-          <span className={styles.statLabel}>Interviews</span>
-          <span className={styles.statValue} style={{ color: '#f59e0b' }}>{stats.interviews}</span>
-        </div>
-        <div className={`${styles.statItem} glass`}>
-          <span className={styles.statLabel}>Rejected</span>
-          <span className={styles.statValue} style={{ color: '#ef4444' }}>{stats.rejected}</span>
-        </div>
-        <div className={`${styles.statItem} glass`}>
-          <span className={styles.statLabel}>Offers</span>
-          <span className={styles.statValue} style={{ color: '#10b981' }}>{stats.offers}</span>
-        </div>
+      <div className="stat-strip">
+        <div className="stat-cell"><div className="stat-label">Applied</div><div className="stat-val">{stats.applied}</div></div>
+        <div className="stat-cell"><div className="stat-label">Interviews</div><div className="stat-val amber">{stats.interviews}</div></div>
+        <div className="stat-cell"><div className="stat-label">Rejected</div><div className="stat-val red">{stats.rejected}</div></div>
+        <div className="stat-cell"><div className="stat-label">Offers</div><div className="stat-val green">{stats.offers}</div></div>
       </div>
 
-      <div className={styles.applicationsList}>
-        {applications.length > 0 ? (
-          applications.map((app: any) => (
-            <div key={app.id} className={`${styles.appCard} glass`}>
-              <div className={styles.appHeader}>
-                <div>
-                  <h3 style={{ color: 'white', marginBottom: 4 }}>{app.title || app.job_title || 'Position'}</h3>
-                  <span className={`${styles.statusBadge} ${styles['status' + capitalize(app.status)]}`}>
-                    {app.status}
-                  </span>
+      <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.25)', marginBottom: '12px', padding: '0 4px' }}>Recent Applications</div>
+
+      {applications.length > 0 ? (
+        applications.map((app: any) => {
+          const logoColor = getLogoColor(app.company_name);
+          return (
+            <div key={app.id} className="job-row" style={{ opacity: app.status === 'rejected' ? 0.55 : 1 }}>
+              <div className="job-logo" style={{ background: logoColor.bg, color: logoColor.color }}>
+                {app.company_name ? app.company_name.substring(0, 2).toUpperCase() : 'NA'}
+              </div>
+              <div className="job-info">
+                <div className="job-title">{app.title || app.job_title} · {app.company_name || 'Company'}</div>
+                <div className="job-meta">
+                  <span>Applied {new Date(app.applied_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  <span>{app.location || 'Remote'}</span>
                 </div>
               </div>
-              <div className={styles.appDetails}>
-                <p style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.7)' }}>
-                  <Building size={14} />
-                  <strong>Company:</strong> {app.company_name || 'N/A'}
-                </p>
-                <p style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.7)' }}>
-                  <Calendar size={14} />
-                  <strong>Applied:</strong> {new Date(app.applied_at).toLocaleDateString()}
-                </p>
-              </div>
-              <div className={styles.appActions}>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center' }}
-                  onClick={() => handleUpdateStatus(app.id, app.status)}
-                  disabled={updatingId === app.id}
-                >
-                  <RefreshCw size={14} className={updatingId === app.id ? 'spin' : ''} />
-                  <span>{updatingId === app.id ? 'Updating...' : 'Cycle Status'}</span>
-                </button>
+              <div className={`status-pill ${getStatusClass(app.status)}`}>
+                {getStatusLabel(app.status)}
               </div>
             </div>
-          ))
-        ) : (
-          <div className={styles.noApps} style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'rgba(255,255,255,0.6)', padding: 32, fontStyle: 'italic' }}>
-            No applications tracked yet. Start applying to jobs in the Jobs tab!
-          </div>
-        )}
-      </div>
+          );
+        })
+      ) : (
+        <div style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>
+          No applications tracked yet. Start applying to jobs in the Jobs tab!
+        </div>
+      )}
     </div>
   );
 };
-
-function capitalize(val: string): string {
-  if (!val) return '';
-  return val.charAt(0).toUpperCase() + val.slice(1);
-}
 
 export default ApplicationsList;

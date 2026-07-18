@@ -13,7 +13,8 @@ export function getDatabase() {
       database: env.DB_NAME,
       username: env.DB_USER,
       password: env.DB_PASSWORD,
-      connect_timeout: 5,
+      ssl: env.DB_SSL ? 'require' : false,
+      connect_timeout: 10,
     });
   }
   return sql;
@@ -142,14 +143,14 @@ export async function initializeDatabase() {
       );
     `;
 
-    await sql`
-      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-      CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
-      CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source);
-      CREATE INDEX IF NOT EXISTS idx_match_scores_user_id ON match_scores(user_id);
-      CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id);
-      CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-    `;
+    // Each index must be a separate query (postgres lib limitation)
+    await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_match_scores_user_id ON match_scores(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`;
+
 
     dbAvailable = true;
     logger.info('✅ Database initialized successfully');

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Plus, Sparkles, TrendingUp, FileText } from 'lucide-react';
 import ResumeSidebar from './ResumeSidebar';
 import ResumeVariant from './ResumeVariant';
 import SkillsGapAnalysis from './SkillsGapAnalysis';
+import { resumeAPI } from '../../api/auth';
 
 interface Variant {
   id: string;
@@ -127,6 +128,29 @@ const ResumeManager: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'variants' | 'skills'>('variants');
   const [sortBy, setSortBy] = useState<'recent' | 'match' | 'improvement'>('recent');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+      
+      const response = await resumeAPI.uploadResume(formData);
+      alert('Resume uploaded successfully!');
+      // Here you would typically fetch updated variants or add the parsed response
+    } catch (error) {
+      console.error('Failed to upload resume', error);
+      alert('Failed to upload resume');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const sortedVariants = [...variants].sort((a, b) => {
     if (sortBy === 'match') return b.matchScore - a.matchScore;
@@ -171,9 +195,20 @@ const ResumeManager: React.FC = () => {
             Create AI-tailored resume variants and close your skills gaps
           </p>
         </div>
-        <button className="neumo-btn inline-flex items-center gap-2 text-sm bg-accent-primary text-white shadow-glow-blue">
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          style={{ display: 'none' }} 
+          accept=".pdf,.doc,.docx"
+          onChange={handleFileUpload}
+        />
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="neumo-btn inline-flex items-center gap-2 text-sm bg-accent-primary text-white shadow-glow-blue"
+        >
           <Plus size={16} />
-          Create New Variant
+          {uploading ? 'Uploading...' : 'Upload Base Resume'}
         </button>
       </div>
 

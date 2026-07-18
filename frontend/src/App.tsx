@@ -35,9 +35,7 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
+              <Dashboard />
             </ProtectedRoute>
           }
         />
@@ -45,9 +43,7 @@ function App() {
           path="/jobs"
           element={
             <ProtectedRoute>
-              <Layout>
-                <JobsTable />
-              </Layout>
+              <JobsTable />
             </ProtectedRoute>
           }
         />
@@ -55,9 +51,7 @@ function App() {
           path="/applications"
           element={
             <ProtectedRoute>
-              <Layout>
-                <ApplicationsList />
-              </Layout>
+              <ApplicationsList />
             </ProtectedRoute>
           }
         />
@@ -65,9 +59,7 @@ function App() {
           path="/companies"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Companies />
-              </Layout>
+              <Companies />
             </ProtectedRoute>
           }
         />
@@ -75,9 +67,7 @@ function App() {
           path="/resume"
           element={
             <ProtectedRoute>
-              <Layout>
-                <ResumeManager />
-              </Layout>
+              <ResumeManager />
             </ProtectedRoute>
           }
         />
@@ -85,9 +75,7 @@ function App() {
           path="/analytics"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Analytics />
-              </Layout>
+              <Analytics />
             </ProtectedRoute>
           }
         />
@@ -95,9 +83,7 @@ function App() {
           path="/settings"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Settings />
-              </Layout>
+              <Settings />
             </ProtectedRoute>
           }
         />

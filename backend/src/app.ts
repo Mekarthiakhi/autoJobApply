@@ -11,6 +11,7 @@ import jobRoutes from './routes/jobs.js';
 import applicationRoutes from './routes/applications.js';
 import dashboardRoutes from './routes/dashboard.js';
 import resumeRoutes from './routes/resumes.js';
+import analyticsRoutes from './routes/analytics.js';
 import { startJobDiscoveryJob } from './jobs/jobDiscoveryJob.js';
 import { startAIMatchingJob } from './jobs/aiMatchingJob.js';
 import { startDailySummaryJob } from './jobs/dailySummaryJob.js';
@@ -34,6 +35,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/resumes', resumeRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Error handler
 app.use(errorHandler);

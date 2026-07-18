@@ -1,23 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart3, Calendar, Download, Filter } from 'lucide-react';
 import AnalyticsMetrics from './AnalyticsMetrics';
 import ApplicationFunnel from './ApplicationFunnel';
 import ActivityHeatmap from './ActivityHeatmap';
+import { analyticsAPI } from '../../api/auth';
 
 const Analytics: React.FC = () => {
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'quarter' | 'year'>('quarter');
   const [activeTab, setActiveTab] = useState<'overview' | 'funnel' | 'activity'>('overview');
+  const [stats, setStats] = useState({
+    totalApplications: 0,
+    profilesViewed: 0,
+    messagesReceived: 0,
+    interviews: 0,
+    offers: 0,
+    responseRate: 0,
+    interviewRate: 0,
+    offerRate: 0,
+  });
 
-  const stats = {
-    totalApplications: 487,
-    profilesViewed: 142,
-    messagesReceived: 54,
-    interviews: 18,
-    offers: 3,
-    responseRate: 11.1,
-    interviewRate: 3.7,
-    offerRate: 0.6,
-  };
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const response = await analyticsAPI.getAnalytics();
+        if (response.data?.stats) {
+          setStats(response.data.stats);
+        }
+      } catch (error) {
+        console.error('Failed to fetch analytics', error);
+      }
+    };
+    fetchAnalytics();
+  }, []);
+
 
   return (
     <div className="w-full space-y-8 fade-in">

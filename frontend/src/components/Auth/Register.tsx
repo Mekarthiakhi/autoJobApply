@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import './Auth.css';
+import styles from './Auth.module.css';
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -81,7 +82,7 @@ export const Register: React.FC = () => {
         </form>
 
         <p className={styles.authLink}>
-          Already have an account? <a href="/login">Sign in</a>
+          Already have an account? <a href="/login">Login</a>
         </p>
       </div>
     </div>
