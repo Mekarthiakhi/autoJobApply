@@ -9,31 +9,32 @@ export function startDailySummaryJob() {
     logger.info('📊 Sending daily summaries...');
     
     try {
-      const sql = getDatabase();
+      const db = await getDatabase();
       
-      const users = await sql`
-        SELECT u.id, u.email, ast.telegram_chat_id
-        FROM users u
-        LEFT JOIN automation_settings ast ON u.id = ast.user_id
-        WHERE ast.telegram_enabled = true
-      `;
+      const users = await db.all(
+        `SELECT u.id, u.email, ast.telegram_chat_id
+         FROM users u
+         LEFT JOIN automation_settings ast ON u.id = ast.user_id
+         WHERE ast.telegram_enabled = 1`
+      );
 
       for (const user of users) {
         try {
-          const stats = await sql`
-            SELECT 
-              COUNT(DISTINCT j.id) as jobs_found,
-              COUNT(DISTINCT CASE WHEN ms.match_score >= 90 THEN j.id END) as high_matches,
-              COUNT(a.id) as applications,
-              COUNT(CASE WHEN a.interview_scheduled THEN 1 END) as interviews,
-              COUNT(CASE WHEN a.offer_received THEN 1 END) as offers
-            FROM jobs j
-            LEFT JOIN match_scores ms ON j.id = ms.job_id AND ms.user_id = ${user.id}
-            LEFT JOIN applications a ON j.id = a.job_id AND a.user_id = ${user.id}
-          `;
+          const stats = await db.get(
+            `SELECT 
+               COUNT(DISTINCT j.id) as jobs_found,
+               SUM(CASE WHEN ms.match_score >= 90 THEN 1 ELSE 0 END) as high_matches,
+               COUNT(a.id) as applications,
+               SUM(CASE WHEN a.interview_scheduled = 1 THEN 1 ELSE 0 END) as interviews,
+               SUM(CASE WHEN a.offer_received = 1 THEN 1 ELSE 0 END) as offers
+             FROM jobs j
+             LEFT JOIN match_scores ms ON j.id = ms.job_id AND ms.user_id = ?
+             LEFT JOIN applications a ON j.id = a.job_id AND a.user_id = ?`,
+            [user.id, user.id]
+          );
 
-          if (user.telegram_chat_id) {
-            await telegramService.sendDailySummary(user.telegram_chat_id, stats[0]);
+          if (user.telegram_chat_id && stats) {
+            await telegramService.sendDailySummary(user.telegram_chat_id, stats as any);
           }
         } catch (error) {
           logger.error('Error sending summary to user', error);

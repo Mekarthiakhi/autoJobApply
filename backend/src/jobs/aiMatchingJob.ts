@@ -12,29 +12,28 @@ export function startAIMatchingJob() {
     logger.info('🤖 Starting AI matching...');
     
     try {
-      const sql = getDatabase();
+      const db = await getDatabase();
       
-      // Get jobs that have not been matched for at least one user with a resume
-      const unmatchedJobs = await sql`
-        SELECT DISTINCT j.*
-        FROM jobs j
-        CROSS JOIN users u
-        JOIN resumes r ON u.id = r.user_id
-        LEFT JOIN match_scores ms ON j.id = ms.job_id AND ms.user_id = u.id
-        WHERE ms.id IS NULL
-        LIMIT 10
-      `;
+      const unmatchedJobs = await db.all(
+        `SELECT DISTINCT j.*
+         FROM jobs j
+         CROSS JOIN users u
+         JOIN resumes r ON u.id = r.user_id
+         LEFT JOIN match_scores ms ON j.id = ms.job_id AND ms.user_id = u.id
+         WHERE ms.id IS NULL
+         LIMIT 10`
+      );
 
       for (const job of unmatchedJobs) {
         try {
-          // Get all users who don't have a match score for this job and have a resume
-          const usersToMatch = await sql`
-            SELECT u.id, r.text_content
-            FROM users u
-            JOIN resumes r ON u.id = r.user_id
-            LEFT JOIN match_scores ms ON ms.job_id = ${job.id} AND ms.user_id = u.id
-            WHERE ms.id IS NULL
-          `;
+          const usersToMatch = await db.all(
+            `SELECT u.id, r.text_content
+             FROM users u
+             JOIN resumes r ON u.id = r.user_id
+             LEFT JOIN match_scores ms ON ms.job_id = ? AND ms.user_id = u.id
+             WHERE ms.id IS NULL`,
+            [job.id]
+          );
           
           for (const user of usersToMatch) {
             if (user.text_content) {

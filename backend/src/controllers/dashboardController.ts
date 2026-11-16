@@ -1,61 +1,64 @@
 import { Request, Response } from 'express';
-import { ApplicationRepository } from '../repositories/applicationRepository.js';
 import { JobRepository } from '../repositories/jobRepository.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { analyticsService, AnalyticsFilters } from '../services/analyticsService.js';
 
-const applicationRepository = new ApplicationRepository();
 const jobRepository = new JobRepository();
-
-import { getDatabase } from '../config/database.js';
 
 export async function getDashboard(req: Request, res: Response) {
   try {
     const userId = req.userId;
     if (!userId) throw new AppError(401, 'Unauthorized');
 
-    const sql = getDatabase();
+    // Extract filters from query parameters
+    const { startDate, endDate, company, platform, role, status } = req.query;
+    const filters: AnalyticsFilters = {
+      startDate: startDate as string | undefined,
+      endDate: endDate as string | undefined,
+      company: company as string | undefined,
+      platform: platform as string | undefined,
+      role: role as string | undefined,
+      status: status as string | undefined,
+    };
 
-    // 1. Total jobs in the database
-    const jobsCount = await sql`SELECT COUNT(*)::integer as count FROM jobs`;
-    const totalJobsFound = jobsCount[0]?.count || 0;
+    // 1. Fetch real DB metrics for all 11 core metrics
+    const metrics = await analyticsService.getDashboardMetrics(userId, filters);
 
-    // 2. Matches for the user
-    const matchesCount = await sql`
-      SELECT COUNT(*)::integer as count 
-      FROM match_scores 
-      WHERE user_id = ${userId}
-    `;
-    const totalMatches = matchesCount[0]?.count || 0;
+    // 2. Fetch pending candidate actions
+    const pendingActions = await analyticsService.getPendingCandidateActions(userId);
 
-    // 3. Applications statistics for the user
-    const appStats = await sql`
-      SELECT 
-        COUNT(*)::integer as total,
-        COUNT(*) FILTER (WHERE interview_scheduled = true)::integer as interviews,
-        COUNT(*) FILTER (WHERE rejected = true)::integer as rejected,
-        COUNT(*) FILTER (WHERE offer_received = true)::integer as offers
-      FROM applications
-      WHERE user_id = ${userId}
-    `;
-    
-    const stats = appStats[0] || { total: 0, interviews: 0, rejected: 0, offers: 0 };
-    const totalApplications = stats.total;
-    const successRate = totalApplications > 0 
-      ? Math.round((stats.offers / totalApplications) * 100) 
-      : 0;
+    // 3. Fetch recent workflow history
+    const recentWorkflow = await analyticsService.getRecentWorkflowHistory(userId, 8);
 
+    // 4. Fetch source performance breakdown
+    const sourcePerformance = await analyticsService.getSourcePerformance(userId, filters);
+
+    // 5. Fetch recent jobs
     const recentJobs = await jobRepository.findRecent(5);
 
+    // Format response with both comprehensive Phase 11 metrics and backwards-compatible stats
     res.json({
+      metrics,
+      // Backwards-compatible stats object for legacy dashboard widgets
       stats: {
-        totalJobsFound,
-        totalApplications,
-        totalMatches,
-        successRate,
-        interviews: stats.interviews || 0,
-        offers: stats.offers || 0,
+        totalJobsFound: metrics.totalJobsDiscovered,
+        totalApplications: metrics.applicationsSubmitted,
+        totalMatches: metrics.jobsShortlisted,
+        successRate: metrics.applicationConversionRate,
+        interviews: metrics.interviewInvitations,
+        offers: Math.round(metrics.applicationsSubmitted * (metrics.applicationConversionRate / 100)),
+        pendingReviews: metrics.applicationsAwaitingReview,
+        prepared: metrics.applicationsPrepared,
+        approved: metrics.applicationsApproved,
+        failed: metrics.failedApplications,
+        rejectionRate: metrics.rejectionRate,
+        avgTimeToSubmit: metrics.avgTimeDiscoveryToSubmissionFormatted,
       },
+      pendingActions,
+      recentWorkflow: recentWorkflow.items,
+      sourcePerformance,
       recentJobs,
+      filters,
     });
   } catch (error) {
     if (error instanceof AppError) {

@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+**/node_modules/
 package-lock.json
 yarn.lock
 
@@ -36,8 +37,14 @@ yarn-debug.log*
 # Database
 *.sqlite
 *.db
+*.db-shm
+*.db-wal
 
-# Uploads
+# Runtime and generated data
+/backups/
+**/data/*.db
+**/screenshots/
+**/exports/
 uploads/
 temp/
 

@@ -40,7 +40,52 @@ export const applicationsAPI = {
 };
 
 export const dashboardAPI = {
-  getDashboard: () => client.get('/dashboard'),
+  getDashboard: (params?: any) => client.get('/dashboard', { params }),
+  runAgents: () => client.post('/agents/run'),
+};
+
+// --- New Agent APIs ---
+
+export const reviewQueueAPI = {
+  getPendingReviews: () => client.get('/review-queue'),
+  getReviewDetail: (id: string) => client.get(`/review-queue/${id}`),
+  verifyAnswers: (id: string, answers: any[]) => client.post(`/review-queue/${id}/verify-answers`, { answers }),
+  updateDraft: (id: string, data: any) => client.put(`/review-queue/${id}/draft`, data),
+  approve: (id: string, draftHash?: string) => client.post(`/review-queue/${id}/approve`, { approvedDraftHash: draftHash }),
+  approveAll: (confirmed: boolean = true) => client.post('/review-queue/approve-all', { confirmed }),
+  reject: (id: string, reason?: string) => client.post(`/review-queue/${id}/reject`, { reason }),
+};
+
+export const resumeVersionsAPI = {
+  getVersions: () => client.get('/resume-versions'),
+  createVersion: (formData: FormData) => client.post('/resume-versions', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  updateVersion: (id: string, data: any) => client.put(`/resume-versions/${id}`, data),
+  deleteVersion: (id: string) => client.delete(`/resume-versions/${id}`),
+  setDefault: (id: string) => client.post(`/resume-versions/${id}/default`),
+};
+
+export const coverLettersAPI = {
+  getLetters: () => client.get('/cover-letters'),
+  getLetter: (id: string) => client.get(`/cover-letters/${id}`),
+  generate: (jobId: string, resumeVersionId?: string) => client.post('/cover-letters/generate', { jobId, resumeVersionId }),
+  updateLetter: (id: string, content: string) => client.put(`/cover-letters/${id}`, { content }),
+  deleteLetter: (id: string) => client.delete(`/cover-letters/${id}`),
+};
+
+export const activityLogsAPI = {
+  getLogs: (params?: any) => client.get('/activity-logs', { params }),
+  getStats: () => client.get('/activity-logs/stats'),
+};
+
+export const settingsAPI = {
+  getSettings: () => client.get('/settings'),
+  updateSettings: (data: any) => client.put('/settings', data),
+};
+
+export const exportsAPI = {
+  getApplicationsCsvUrl: () => `${API_URL}/exports/applications/csv`,
+  getApplicationsXlsxUrl: () => `${API_URL}/exports/applications/xlsx`,
+  getActivityLogsCsvUrl: () => `${API_URL}/exports/activity-logs/csv`,
 };
 
 export const resumeAPI = {
@@ -53,7 +98,7 @@ export const resumeAPI = {
 };
 
 export const analyticsAPI = {
-  getAnalytics: () => client.get('/analytics'),
+  getAnalytics: (params?: any) => client.get('/analytics', { params }),
 };
 
 export default client;

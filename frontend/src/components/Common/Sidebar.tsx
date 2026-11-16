@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, FileCheck, Building2, FileText, BarChart3, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileCheck, Building2, FileText, BarChart3, Inbox, Activity, Files, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './Common.module.css';
 
@@ -27,13 +27,21 @@ export const Sidebar: React.FC = () => {
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
         </NavLink>
+
+        <NavLink 
+          to="/review-queue" 
+          className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
+        >
+          <Inbox size={20} />
+          <span>Review Queue</span>
+        </NavLink>
         
         <NavLink 
           to="/jobs" 
           className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
         >
           <Briefcase size={20} />
-          <span>Jobs</span>
+          <span>Job Search</span>
         </NavLink>
         
         <NavLink 
@@ -42,6 +50,30 @@ export const Sidebar: React.FC = () => {
         >
           <FileCheck size={20} />
           <span>Applications</span>
+        </NavLink>
+
+        <NavLink 
+          to="/cover-letters" 
+          className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
+        >
+          <FileText size={20} />
+          <span>Cover Letters</span>
+        </NavLink>
+
+        <NavLink 
+          to="/resume-versions" 
+          className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
+        >
+          <Files size={20} />
+          <span>Resume Versions</span>
+        </NavLink>
+        
+        <NavLink 
+          to="/activity-logs" 
+          className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
+        >
+          <Activity size={20} />
+          <span>Activity Logs</span>
         </NavLink>
         
         <NavLink 

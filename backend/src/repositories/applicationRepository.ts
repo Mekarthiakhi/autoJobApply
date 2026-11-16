@@ -1,107 +1,232 @@
-import { getDatabase, isDatabaseAvailable } from '../config/database.js';
+import { getDatabase } from '../config/database.js';
+import { ApplicationStage, ApplicationAnswer, MissingFieldItem, UncertainFieldItem } from '../execution/types.js';
 
 export interface Application {
   id: string;
   user_id: string;
   job_id: string;
   status: string;
-  applied_at: Date;
+  applied_at: string;
   interview_scheduled: boolean;
-  interview_date: Date | null;
+  interview_date: string | null;
   rejected: boolean;
   offer_received: boolean;
   notes: string;
-  updated_at: Date;
+  updated_at: string;
+  // Joined or tracked fields
+  resume_version_id?: string | null;
+  resume_version_label?: string | null;
+  cover_letter_id?: string | null;
+  match_score?: number | null;
+  review_status?: string | null;
+  stage_status?: ApplicationStage;
+  job_title?: string;
+  company_name?: string;
+  apply_url?: string;
+  location?: string;
+  application_answers?: string;
+  missing_fields?: string;
+  uncertain_fields?: string;
+  candidate_verified?: number;
+  draft_version?: number;
+  approved_draft_hash?: string | null;
+  approval_expires_at?: string | null;
+  submission_attempt_count?: number;
+  last_submission_error?: string | null;
 }
 
-const mockApplications: Application[] = [];
+export interface CreateApplicationOptions {
+  resumeVersionId?: string | null;
+  coverLetterId?: string | null;
+  notes?: string;
+  matchScore?: number;
+  reviewStatus?: string;
+  stageStatus?: ApplicationStage;
+  applicationAnswers?: ApplicationAnswer[];
+  missingFields?: MissingFieldItem[];
+  uncertainFields?: UncertainFieldItem[];
+}
 
 export class ApplicationRepository {
-  async create(userId: string, jobId: string): Promise<Application> {
-    if (!isDatabaseAvailable()) {
-      const newApp: Application = {
-        id: Math.random().toString(36).substring(7),
-        user_id: userId,
-        job_id: jobId,
-        status: 'applied',
-        applied_at: new Date(),
-        interview_scheduled: false,
-        interview_date: null,
-        rejected: false,
-        offer_received: false,
-        notes: '',
-        updated_at: new Date()
-      };
-      mockApplications.push(newApp);
-      return newApp;
-    }
-    const sql = getDatabase();
-    const result = await sql`
-      INSERT INTO applications (user_id, job_id)
-      VALUES (${userId}, ${jobId})
-      ON CONFLICT (user_id, job_id) DO UPDATE SET updated_at = NOW()
-      RETURNING *
-    `;
-    return result[0] as Application;
+  async create(
+    userId: string, 
+    jobId: string, 
+    options: CreateApplicationOptions = {}
+  ): Promise<Application> {
+    const db = await getDatabase();
+    
+    await db.run(
+      `INSERT INTO applications (
+        user_id, job_id, resume_version_id, cover_letter_id, notes, match_score, 
+        review_status, stage_status, application_answers, missing_fields, uncertain_fields
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (user_id, job_id) DO UPDATE SET 
+        resume_version_id = COALESCE(excluded.resume_version_id, applications.resume_version_id),
+        cover_letter_id = COALESCE(excluded.cover_letter_id, applications.cover_letter_id),
+        notes = COALESCE(excluded.notes, applications.notes),
+        match_score = COALESCE(excluded.match_score, applications.match_score),
+        review_status = COALESCE(excluded.review_status, applications.review_status),
+        stage_status = COALESCE(excluded.stage_status, applications.stage_status),
+        application_answers = COALESCE(excluded.application_answers, applications.application_answers),
+        missing_fields = COALESCE(excluded.missing_fields, applications.missing_fields),
+        uncertain_fields = COALESCE(excluded.uncertain_fields, applications.uncertain_fields),
+        updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId, 
+        jobId, 
+        options.resumeVersionId || null, 
+        options.coverLetterId || null, 
+        options.notes || '', 
+        options.matchScore !== undefined ? options.matchScore : null,
+        options.reviewStatus || 'pending',
+        options.stageStatus || ApplicationStage.READY_FOR_REVIEW,
+        options.applicationAnswers ? JSON.stringify(options.applicationAnswers) : '[]',
+        options.missingFields ? JSON.stringify(options.missingFields) : '[]',
+        options.uncertainFields ? JSON.stringify(options.uncertainFields) : '[]',
+      ]
+    );
+    
+    return this.findByUserAndJob(userId, jobId) as Promise<Application>;
+  }
+
+  async findById(id: string): Promise<Application | null> {
+    const db = await getDatabase();
+    const row = await db.get(
+      `SELECT 
+         a.*,
+         j.title as job_title,
+         j.company_name,
+         j.location,
+         j.apply_url,
+         rv.label as resume_version_label
+       FROM applications a
+       JOIN jobs j ON a.job_id = j.id
+       LEFT JOIN resume_versions rv ON a.resume_version_id = rv.id
+       WHERE a.id = ?`,
+      [id]
+    );
+    return (row || null) as Application | null;
+  }
+
+  async findByUserAndJob(userId: string, jobId: string): Promise<Application | null> {
+    const db = await getDatabase();
+    const row = await db.get(
+      `SELECT 
+         a.*,
+         j.title as job_title,
+         j.company_name,
+         j.location,
+         j.apply_url,
+         rv.label as resume_version_label
+       FROM applications a
+       JOIN jobs j ON a.job_id = j.id
+       LEFT JOIN resume_versions rv ON a.resume_version_id = rv.id
+       WHERE a.user_id = ? AND a.job_id = ?`,
+      [userId, jobId]
+    );
+    return (row || null) as Application | null;
   }
 
   async findByUserId(userId: string): Promise<Application[]> {
-    if (!isDatabaseAvailable()) {
-      return mockApplications.filter(a => a.user_id === userId).sort((a, b) => b.applied_at.getTime() - a.applied_at.getTime());
-    }
-    const sql = getDatabase();
-    return sql`SELECT * FROM applications WHERE user_id = ${userId} ORDER BY applied_at DESC`;
+    const db = await getDatabase();
+    return (await db.all(
+      `SELECT 
+         a.*,
+         j.title as job_title,
+         j.company_name,
+         j.location,
+         j.apply_url,
+         rv.label as resume_version_label
+       FROM applications a
+       JOIN jobs j ON a.job_id = j.id
+       LEFT JOIN resume_versions rv ON a.resume_version_id = rv.id
+       WHERE a.user_id = ?
+       ORDER BY a.applied_at DESC`,
+      [userId]
+    )) as Application[];
   }
 
-  async updateStatus(applicationId: string, status: string): Promise<Application> {
-    if (!isDatabaseAvailable()) {
-      const idx = mockApplications.findIndex(a => a.id === applicationId);
-      if (idx !== -1) {
-        mockApplications[idx].status = status;
-        mockApplications[idx].updated_at = new Date();
-        return mockApplications[idx];
-      }
-      throw new Error('Application not found');
-    }
-    const sql = getDatabase();
-    const isInterview = status === 'interview';
-    const isRejected = status === 'rejected';
-    const isOffer = status === 'offer';
+  async findByResumeVersionId(userId: string, resumeVersionId: string): Promise<Application[]> {
+    const db = await getDatabase();
+    return (await db.all(
+      `SELECT 
+         a.*,
+         j.title as job_title,
+         j.company_name,
+         j.location,
+         j.apply_url,
+         rv.label as resume_version_label
+       FROM applications a
+       JOIN jobs j ON a.job_id = j.id
+       LEFT JOIN resume_versions rv ON a.resume_version_id = rv.id
+       WHERE a.user_id = ? AND a.resume_version_id = ?
+       ORDER BY a.applied_at DESC`,
+      [userId, resumeVersionId]
+    )) as Application[];
+  }
 
-    const result = await sql`
-      UPDATE applications 
-      SET 
-        status = ${status}, 
-        interview_scheduled = ${isInterview},
-        rejected = ${isRejected},
-        offer_received = ${isOffer},
-        updated_at = NOW()
-      WHERE id = ${applicationId}
-      RETURNING *
-    `;
-    return result[0] as Application;
+  async updateResumeVersion(applicationId: string, resumeVersionId: string): Promise<void> {
+    const db = await getDatabase();
+    await db.run(
+      `UPDATE applications 
+       SET resume_version_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [resumeVersionId, applicationId]
+    );
+  }
+
+  async updateStageStatus(applicationId: string, stageStatus: ApplicationStage): Promise<void> {
+    const db = await getDatabase();
+    await db.run(
+      `UPDATE applications 
+       SET stage_status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [stageStatus, applicationId]
+    );
+  }
+
+  async updateStatus(applicationId: string, userId: string, status: string): Promise<Application | null> {
+    const db = await getDatabase();
+    const isInterview = status === 'interview' ? 1 : 0;
+    const isRejected = status === 'rejected' ? 1 : 0;
+    const isOffer = status === 'offer' ? 1 : 0;
+
+    const result = await db.run(
+      `UPDATE applications 
+       SET 
+         status = ?, 
+         interview_scheduled = ?,
+         rejected = ?,
+         offer_received = ?,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`,
+      [status, isInterview, isRejected, isOffer, applicationId, userId]
+    );
+    
+    if (!result.changes || result.changes === 0) {
+      return null;
+    }
+
+    return (await db.get(`SELECT * FROM applications WHERE id = ? AND user_id = ?`, [applicationId, userId])) as Application | null;
   }
 
   async getStats(userId: string) {
-    if (!isDatabaseAvailable()) {
-      const userApps = mockApplications.filter(a => a.user_id === userId);
-      return {
-        applied: userApps.filter(a => a.status === 'applied').length,
-        interviews: userApps.filter(a => a.interview_scheduled).length,
-        rejected: userApps.filter(a => a.rejected).length,
-        offers: userApps.filter(a => a.offer_received).length
-      };
-    }
-    const sql = getDatabase();
-    const result = await sql`
-      SELECT 
-        COUNT(*) FILTER (WHERE status = 'applied') as applied,
-        COUNT(*) FILTER (WHERE interview_scheduled) as interviews,
-        COUNT(*) FILTER (WHERE rejected) as rejected,
-        COUNT(*) FILTER (WHERE offer_received) as offers
-      FROM applications
-      WHERE user_id = ${userId}
-    `;
-    return result[0] as { applied: number; interviews: number; rejected: number; offers: number };
+    const db = await getDatabase();
+    const result = await db.get(
+      `SELECT 
+         SUM(CASE WHEN status = 'applied' THEN 1 ELSE 0 END) as applied,
+         SUM(CASE WHEN interview_scheduled = 1 THEN 1 ELSE 0 END) as interviews,
+         SUM(CASE WHEN rejected = 1 THEN 1 ELSE 0 END) as rejected,
+         SUM(CASE WHEN offer_received = 1 THEN 1 ELSE 0 END) as offers
+       FROM applications
+       WHERE user_id = ?`,
+      [userId]
+    );
+    return {
+      applied: result?.applied || 0,
+      interviews: result?.interviews || 0,
+      rejected: result?.rejected || 0,
+      offers: result?.offers || 0
+    };
   }
 }

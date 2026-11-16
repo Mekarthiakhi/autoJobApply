@@ -11,6 +11,8 @@ export const playwrightConfig = {
   launchOptions: {
     headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
     args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
       '--no-first-run',
@@ -178,8 +180,8 @@ export const antiDetection = {
    */
   async randomScroll(page: any): Promise<void> {
     const scrollHeight = await page.evaluate(() => document.body.scrollHeight);
-    const randomScroll = Math.random() * scrollHeight * 0.5;
-    await page.evaluate((scroll) => window.scrollBy(0, scroll), randomScroll);
+    const scrollAmount = Math.random() * scrollHeight * 0.5;
+    await page.evaluate((scroll: any) => window.scrollBy(0, scroll), scrollAmount);
   },
 
   /**

@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+.git
+.env
+.env.*
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
+backups
+**/screenshots
+**/exports

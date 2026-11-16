@@ -17,22 +17,27 @@ services:
   backend:
     build: ./backend
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-staging}
       PORT: 5000
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: job_automation
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DB_PATH: /app/data/jobs.db
+      JWT_SECRET: ${JWT_SECRET:?Error: JWT_SECRET is required and must be at least 32 characters}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Error: CORS_ORIGIN is required with explicit allowed domains}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ENABLE_SCHEDULED_JOBS: ${ENABLE_SCHEDULED_JOBS:-false}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SCREENSHOTS_DIR: /app/screenshots
+      EXPORT_DIR: /app/exports
+    volumes:
+      - ./backend/data:/app/data
+      - ./backups:/app/backups
+      - ./backend/screenshots:/app/screenshots
+      - ./backend/exports:/app/exports
     ports:
-      - "5000:5000"
-    depends_on:
-      - db
+      # Restrict direct public access; only loopback interface for reverse proxy
+      - "127.0.0.1:5000:5000"
     networks:
       - job-automation
     restart: unless-stopped
@@ -41,9 +46,10 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://localhost:5000/api
+        VITE_API_URL: ${VITE_API_URL:-/api}
     ports:
-      - "3000:3000"
+      # Restrict direct public access; only loopback interface for reverse proxy
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend
     networks:

@@ -1,27 +1,36 @@
 import { getDatabase } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { candidateExtractor } from '../resumes/candidateExtractor.js';
+import { StructuredResume } from '../resumes/types.js';
 
 export interface ResumeData {
   skills: string[];
   experience: string;
   education: string;
   keywords: string[];
+  structured?: StructuredResume;
 }
 
 export class ResumeService {
   async extractResumeData(textContent: string): Promise<ResumeData> {
     try {
-      // Simple extraction logic - can be enhanced with AI
-      const skills = this.extractSkills(textContent);
-      const experience = this.extractSection(textContent, ['experience', 'work']);
-      const education = this.extractSection(textContent, ['education', 'degree']);
+      const structured = await candidateExtractor.extract(textContent);
+
+      const skills = structured.skills.all;
+      const experience = structured.experience
+        .map(e => `${e.role} at ${e.company} (${e.startDate} - ${e.endDate}):\n${(e.highlights || []).map(h => `• ${h}`).join('\n')}`)
+        .join('\n\n');
+      const education = structured.education
+        .map(e => `${e.degree} from ${e.institution}${e.graduationYear ? ` (${e.graduationYear})` : ''}`)
+        .join('\n');
       const keywords = this.extractKeywords(textContent);
 
       return {
         skills,
-        experience,
-        education,
+        experience: experience.slice(0, 1000),
+        education: education.slice(0, 500),
         keywords,
+        structured,
       };
     } catch (error) {
       logger.error('Resume extraction error', error);
@@ -34,52 +43,19 @@ export class ResumeService {
     }
   }
 
-  private extractSkills(text: string): string[] {
-    const skillKeywords = [
-      'javascript', 'typescript', 'react', 'node.js', 'html5', 'css3',
-      'bootstrap', 'material ui', 'jquery', 'rest api', 'firebase',
-      'git', 'github', 'python', 'java', 'sql', 'mongodb',
-      'docker', 'kubernetes', 'aws', 'azure', 'gcp',
-    ];
-
-    const foundSkills = skillKeywords.filter(skill =>
-      text.toLowerCase().includes(skill)
-    );
-
-    return [...new Set(foundSkills)];
-  }
-
-  private extractSection(text: string, keywords: string[]): string {
-    const lines = text.split('\n');
-    let inSection = false;
-    let section = '';
-
-    for (const line of lines) {
-      const lowerLine = line.toLowerCase();
-      if (keywords.some(k => lowerLine.includes(k))) {
-        inSection = true;
-      } else if (inSection && /^[A-Z]/.test(line)) {
-        break;
-      }
-
-      if (inSection) {
-        section += line + '\n';
-      }
-    }
-
-    return section.slice(0, 500);
-  }
-
   private extractKeywords(text: string): string[] {
     const words = text.toLowerCase().split(/\s+/);
     const stopwords = new Set([
       'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
       'is', 'are', 'was', 'were', 'be', 'been', 'of', 'with', 'as',
+      'this', 'that', 'from', 'by', 'about', 'into', 'over', 'after',
     ]);
 
-    return words
-      .filter(w => w.length > 3 && !stopwords.has(w))
-      .slice(0, 20);
+    return Array.from(new Set(
+      words
+        .map(w => w.replace(/[^a-zA-Z]/g, ''))
+        .filter(w => w.length > 3 && !stopwords.has(w))
+    )).slice(0, 25);
   }
 
   async saveResume(
@@ -89,21 +65,30 @@ export class ResumeService {
     textContent: string,
     data: ResumeData,
   ) {
-    const sql = getDatabase();
-    return sql`
-      INSERT INTO resumes (user_id, file_name, file_path, text_content, skills, experience, education, keywords)
-      VALUES (${userId}, ${fileName}, ${filePath}, ${textContent}, ${data.skills}, ${data.experience}, ${data.education}, ${data.keywords})
-      ON CONFLICT (user_id) DO UPDATE SET 
-        file_name = ${fileName},
-        file_path = ${filePath},
-        text_content = ${textContent},
-        skills = ${data.skills},
-        experience = ${data.experience},
-        education = ${data.education},
-        keywords = ${data.keywords},
-        updated_at = NOW()
-      RETURNING *
-    `;
+    const db = await getDatabase();
+    
+    const skillsJson = JSON.stringify(data.skills);
+    const keywordsJson = JSON.stringify(data.keywords);
+    const builderDataJson = data.structured ? JSON.stringify(data.structured) : null;
+    
+    await db.run(
+      `INSERT INTO resumes (user_id, file_name, file_path, text_content, skills, experience, education, keywords, builder_data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (user_id) DO UPDATE SET 
+         file_name = excluded.file_name,
+         file_path = excluded.file_path,
+         text_content = excluded.text_content,
+         skills = excluded.skills,
+         experience = excluded.experience,
+         education = excluded.education,
+         keywords = excluded.keywords,
+         builder_data = COALESCE(excluded.builder_data, resumes.builder_data),
+         updated_at = CURRENT_TIMESTAMP`,
+      [userId, fileName, filePath, textContent, skillsJson, data.experience, data.education, keywordsJson, builderDataJson]
+    );
+    
+    const result = await db.get(`SELECT * FROM resumes WHERE user_id = ?`, [userId]);
+    return [result];
   }
 }
 

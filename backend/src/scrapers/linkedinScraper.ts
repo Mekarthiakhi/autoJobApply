@@ -1,5 +1,6 @@
 import { chromium, Browser, Page } from 'playwright';
 import { logger } from '../utils/logger.js';
+import { popupAgent } from '../services/popupAgent.js';
 
 interface LinkedInJobData {
   title: string;
@@ -12,15 +13,21 @@ interface LinkedInJobData {
   apply_url: string;
   source: string;
   external_id: string;
+  status: string;
   posted_date: Date;
 }
 
-interface ApplyResult {
+export interface ApplyResult {
   success: boolean;
   appliedAt?: Date;
   message: string;
   jobUrl: string;
   error?: string;
+  draftOnly?: boolean;
+}
+
+export interface ApplyOptions {
+  explicitUserConfirmation?: boolean;
 }
 
 export class LinkedInScraper {
@@ -33,10 +40,13 @@ export class LinkedInScraper {
    */
   private async initBrowser(): Promise<Browser> {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: true,
-        args: ['--disable-blink-features=AutomationControlled'],
-      });
+      try {
+        this.browser = await chromium.connectOverCDP('http://localhost:9222');
+        logger.info('✅ Successfully connected to local Chrome via CDP');
+      } catch (error) {
+        logger.error('❌ Failed to connect to local Chrome. Did you start it with --remote-debugging-port=9222?', error);
+        throw new Error('Chrome CDP connection failed');
+      }
     }
     return this.browser;
   }
@@ -97,12 +107,10 @@ export class LinkedInScraper {
       logger.info('🔍 Starting LinkedIn job scraping...');
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent to avoid detection
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Build search URL
       const searchKeywords = keywords.join(' ');
@@ -182,6 +190,7 @@ export class LinkedInScraper {
             apply_url: applyUrl,
             source: 'linkedin',
             external_id: `linkedin-${jobId}`,
+            status: 'NEW',
             posted_date: new Date(),
           };
 
@@ -205,13 +214,18 @@ export class LinkedInScraper {
   }
 
   /**
-   * Apply to a job on LinkedIn using browser automation
+   * Apply to a job on LinkedIn using browser automation.
+   * SAFEGUARD: Operates in Draft Mode by default. Never clicks Submit without options.explicitUserConfirmation === true.
    */
-  async applyToJob(jobUrl: string, userProfile: any): Promise<ApplyResult> {
+  async applyToJob(
+    jobUrl: string,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<ApplyResult> {
     let page: Page | null = null;
 
     try {
-      logger.info(`📤 Starting LinkedIn auto-apply for: ${jobUrl}`);
+      logger.info(`📤 Starting LinkedIn application processing for: ${jobUrl}`);
 
       // Check if credentials are configured
       if (!this.linkedinEmail || !this.linkedinPassword) {
@@ -225,12 +239,10 @@ export class LinkedInScraper {
       }
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Login to LinkedIn
       const loginSuccess = await this.loginToLinkedIn(page);
@@ -247,12 +259,15 @@ export class LinkedInScraper {
       logger.info(`🔗 Navigating to job: ${jobUrl}`);
       await page.goto(jobUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
+      // Automatically accept cookies or dismiss dialogs
+      await popupAgent.autoHandleAll(page);
+
       // Wait for page to load
       await page.waitForTimeout(2000);
 
       // Look for Easy Apply button
       const easyApplyButton = await page.locator('button:has-text("Easy Apply")').first();
-      const isEasyApplyAvailable = await easyApplyButton.isVisible();
+      const isEasyApplyAvailable = await easyApplyButton.isVisible().catch(() => false);
 
       if (!isEasyApplyAvailable) {
         logger.info('ℹ️ Easy Apply not available for this job');
@@ -268,10 +283,20 @@ export class LinkedInScraper {
       await easyApplyButton.click();
       await page.waitForTimeout(1000);
 
-      // Handle application form
-      const applicationSuccess = await this.fillApplicationForm(page, userProfile);
+      // Handle application form (Draft Mode by default)
+      const formResult = await this.fillApplicationForm(page, userProfile, options);
 
-      if (applicationSuccess) {
+      if (formResult.success) {
+        if (!formResult.submitted) {
+          logger.info(`🛡️ [Safety Guard] Application draft prepared safely for: ${jobUrl}`);
+          return {
+            success: true,
+            draftOnly: true,
+            message: 'Application draft prepared. Explicit user approval required to submit.',
+            jobUrl,
+          };
+        }
+
         logger.info(`✅ Successfully applied to job: ${jobUrl}`);
         return {
           success: true,
@@ -284,7 +309,7 @@ export class LinkedInScraper {
           success: false,
           message: 'Failed to complete application form',
           jobUrl,
-          error: 'Application form submission failed',
+          error: 'Application form preparation failed',
         };
       }
     } catch (error) {
@@ -303,11 +328,20 @@ export class LinkedInScraper {
   }
 
   /**
-   * Fill LinkedIn Easy Apply form
+   * Fill LinkedIn Easy Apply form.
+   * SAFEGUARD: Only fills verified user details. Does not guess question answers or agree to terms.
+   * NEVER clicks submit unless options.explicitUserConfirmation === true.
    */
-  private async fillApplicationForm(page: Page, userProfile: any): Promise<boolean> {
+  private async fillApplicationForm(
+    page: Page,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<{ success: boolean; submitted: boolean }> {
     try {
-      logger.info('📝 Filling application form...');
+      logger.info('📝 Preparing application form draft...');
+
+      // Safe cookie / modal dismissal
+      await popupAgent.autoHandleAll(page);
 
       // Wait for modal to appear
       await page.waitForSelector('.artdeco-modal__header', { timeout: 10000 });
@@ -315,7 +349,7 @@ export class LinkedInScraper {
       // Get all form fields
       const textInputs = await page.locator('input[type="text"], textarea').all();
 
-      // Fill text fields if they exist
+      // Fill only verified text fields
       for (const input of textInputs) {
         const placeholder = await input.getAttribute('placeholder');
         const name = await input.getAttribute('name');
@@ -330,41 +364,29 @@ export class LinkedInScraper {
         }
       }
 
-      // Handle radio buttons and checkboxes
-      const radioButtons = await page.locator('input[type="radio"]').all();
-      for (const radio of radioButtons) {
-        const value = await radio.getAttribute('value');
-        // Select 'Yes' or appropriate options
-        if (value?.toLowerCase().includes('yes') || value?.toLowerCase().includes('true')) {
-          await radio.check();
-        }
+      // Check for submit button
+      const submitButton = await page.locator('button:has-text("Submit"), button:has-text("Apply Now")').first();
+      const hasSubmitButton = await submitButton.isVisible().catch(() => false);
+
+      // SAFEGUARD: Do not submit unless explicitly confirmed by user
+      if (!options.explicitUserConfirmation) {
+        logger.info('🛡️ [Safety Guard] Form draft prepared. Stopped before final submission (explicit confirmation required).');
+        return { success: true, submitted: false };
       }
 
-      // Look for submit button and click
-      const submitButton = await page.locator('button:has-text("Submit"), button:has-text("Apply Now")').first();
-
-      if (await submitButton.isVisible()) {
+      if (hasSubmitButton) {
         await submitButton.click();
-        logger.info('✅ Application form submitted');
+        logger.info('✅ Application form submitted with explicit user confirmation');
 
-        // Wait for success message or navigation
         await page.waitForTimeout(3000);
-
-        // Check for success confirmation
-        const successMessage = await page.locator('text=/Successfully|Application sent|Thank you/i').first();
-        if (await successMessage.isVisible()) {
-          logger.info('✅ Application success confirmed');
-          return true;
-        }
-
-        return true; // Assume success if submit was clicked
+        return { success: true, submitted: true };
       } else {
         logger.warn('⚠️ Submit button not found');
-        return false;
+        return { success: false, submitted: false };
       }
     } catch (error) {
       logger.error('Error filling application form:', error);
-      return false;
+      return { success: false, submitted: false };
     }
   }
 }

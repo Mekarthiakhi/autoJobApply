@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { getDatabase } from '../config/database.js';
+import { getDatabase, initializeDatabase } from '../config/database.js';
 
 const mockJobs = [
   {
@@ -65,13 +65,14 @@ const mockJobs = [
 ];
 
 async function seed() {
-  const sql = getDatabase();
+  await initializeDatabase();
+  const db = await getDatabase();
   
   try {
     console.log('Seeding database...');
     
     // Find test user
-    const users = await sql`SELECT id FROM users WHERE email = 'test@example.com'`;
+    const users = await db.all(`SELECT id FROM users WHERE email = 'test@example.com'`);
     if (users.length === 0) {
       console.log('User test@example.com not found. Please register this user first.');
       process.exit(1);
@@ -82,43 +83,49 @@ async function seed() {
 
     // Insert jobs
     for (const job of mockJobs) {
-      const insertedJob = await sql`
-        INSERT INTO jobs (
+      await db.run(
+        `INSERT INTO jobs (
           title, company_name, location, salary, experience_level, 
           required_skills, job_description, apply_url, source, external_id
-        ) VALUES (
-          ${job.title}, ${job.company_name}, ${job.location}, ${job.salary}, 
-          ${job.experience_level}, ${job.required_skills}, ${job.job_description}, 
-          ${job.apply_url}, ${job.source}, ${job.external_id}
-        )
-        ON CONFLICT (source, external_id) DO UPDATE SET 
-          title = EXCLUDED.title
-        RETURNING id
-      `;
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (source, external_id) DO UPDATE SET title = excluded.title`,
+        [
+          job.title, job.company_name, job.location, job.salary, 
+          job.experience_level, JSON.stringify(job.required_skills), job.job_description, 
+          job.apply_url, job.source, job.external_id
+        ]
+      );
       
-      const jobId = insertedJob[0].id;
+      const insertedJob = await db.get(
+        `SELECT id FROM jobs WHERE source = ? AND external_id = ?`,
+        [job.source, job.external_id]
+      );
+      const jobId = insertedJob?.id;
+      if (!jobId) continue;
       
       // Randomly create match scores
       const matchScore = Math.floor(Math.random() * 30) + 70; // 70 to 99
-      await sql`
-        INSERT INTO match_scores (user_id, job_id, match_score, missing_skills, matching_skills, recommendation)
-        VALUES (
-          ${userId}, ${jobId}, ${matchScore}, 
-          '{"Docker"}', '{"React", "TypeScript"}', 'Strong Match'
-        )
-        ON CONFLICT (user_id, job_id) DO NOTHING
-      `;
+      await db.run(
+        `INSERT INTO match_scores (user_id, job_id, match_score, missing_skills, matching_skills, recommendation)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (user_id, job_id) DO NOTHING`,
+        [
+          userId, jobId, matchScore, 
+          JSON.stringify(['Docker']), JSON.stringify(['React', 'TypeScript']), 'Strong Match'
+        ]
+      );
       
       // Randomly apply to some jobs to seed applications
       if (Math.random() > 0.5) {
         const statuses = ['applied', 'interview', 'rejected', 'offer'];
         const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
         
-        await sql`
-          INSERT INTO applications (user_id, job_id, status)
-          VALUES (${userId}, ${jobId}, ${randomStatus})
-          ON CONFLICT (user_id, job_id) DO NOTHING
-        `;
+        await db.run(
+          `INSERT INTO applications (user_id, job_id, status)
+          VALUES (?, ?, ?)
+          ON CONFLICT (user_id, job_id) DO NOTHING`,
+          [userId, jobId, randomStatus]
+        );
       }
     }
     
@@ -126,8 +133,6 @@ async function seed() {
     
   } catch (err) {
     console.error('Failed to seed:', err);
-  } finally {
-    await sql.end();
   }
 }
 

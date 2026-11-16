@@ -1,0 +1,19 @@
+.reviewCard {
+  transition: all 0.2s ease-in-out;
+}
+
+.reviewCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.rejectBtn {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.rejectBtn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}

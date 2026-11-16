@@ -1,5 +1,5 @@
-import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { aiModelManager } from '../ai/index.js';
 
 export interface MatchResult {
   score: number;
@@ -39,75 +39,99 @@ Please analyze and provide a JSON response with:
 Respond only with valid JSON.
 `;
 
-      // Try Gemini first, then fall back to OpenAI
-      if (env.GEMINI_API_KEY) {
-        return await this.callGemini(prompt);
-      } else if (env.OPENAI_API_KEY) {
-        return await this.callOpenAI(prompt);
-      } else {
-        logger.warn('No AI API key configured. Set GEMINI_API_KEY or OPENAI_API_KEY in .env');
-        return this.defaultResult();
-      }
+      const result = await aiModelManager.completeJSON<any>(prompt, {
+        tier: 'fast',
+        temperature: 0.7,
+      });
+
+      const data = result.parsed || {};
+      return {
+        score: typeof data.match_score === 'number' ? data.match_score : 0,
+        missingSkills: Array.isArray(data.missing_skills) ? data.missing_skills : [],
+        matchingSkills: Array.isArray(data.matching_skills) ? data.matching_skills : [],
+        strengths: Array.isArray(data.strengths) ? data.strengths : [],
+        recommendation: ['Apply', 'Maybe', 'Skip'].includes(data.recommendation)
+          ? data.recommendation
+          : 'Skip',
+      };
     } catch (error) {
       logger.error('AI Matching error', error);
       return this.defaultResult();
     }
   }
 
-  private async callGemini(prompt: string): Promise<MatchResult> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+  async optimizeResume(
+    resumeContent: string,
+    jobDescription: string
+  ): Promise<any> {
+    try {
+      const prompt = `
+You are an expert ATS (Applicant Tracking System) and career coach. Compare this resume against this job description.
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
+RESUME:
+${resumeContent}
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+JOB DESCRIPTION:
+${jobDescription}
+
+Give:
+- ATS Score (0-100)
+- Missing keywords (array)
+- Skills to improve (array)
+- Grammar suggestions (array)
+- Experience gaps (array)
+- Projects to add (array)
+
+Return ONLY valid JSON with keys: ats_score, missing_keywords, skills_to_improve, grammar_suggestions, experience_gaps, projects_to_add.
+`;
+
+      const result = await aiModelManager.completeJSON<any>(prompt, {
+        tier: 'quality',
+        temperature: 0.7,
+      });
+
+      return result.parsed;
+    } catch (error) {
+      logger.error('Resume Optimization AI error', error);
+      throw error;
     }
-
-    const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!content) throw new Error('No response from Gemini');
-
-    const result = JSON.parse(content);
-    return {
-      score: result.match_score ?? 0,
-      missingSkills: result.missing_skills || [],
-      matchingSkills: result.matching_skills || [],
-      strengths: result.strengths || [],
-      recommendation: result.recommendation || 'Skip',
-    };
   }
 
-  private async callOpenAI(prompt: string): Promise<MatchResult> {
-    const { OpenAI } = await import('openai');
-    const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  async negotiateSalary(
+    jobOffer: string,
+    currentSalary: string,
+    experience: string,
+    location: string,
+    industry: string
+  ): Promise<any> {
+    try {
+      const prompt = `
+You are an expert career negotiator. I have a job offer and I want to negotiate my salary.
+Job Offer Details: ${jobOffer}
+Current Salary: ${currentSalary}
+Experience: ${experience}
+Location: ${location}
+Industry: ${industry}
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-    });
+Suggest:
+- Expected Salary
+- Market Range
+- Tips (array of strings)
+- Negotiation Email (a ready-to-send draft email)
 
-    const content = response.choices[0].message.content;
-    if (!content) throw new Error('No response from OpenAI');
+Return ONLY valid JSON with keys: expected_salary, market_range, tips, negotiation_email.
+`;
 
-    const result = JSON.parse(content);
-    return {
-      score: result.match_score ?? 0,
-      missingSkills: result.missing_skills || [],
-      matchingSkills: result.matching_skills || [],
-      strengths: result.strengths || [],
-      recommendation: result.recommendation || 'Skip',
-    };
+      const result = await aiModelManager.completeJSON<any>(prompt, {
+        tier: 'reasoning',
+        temperature: 0.7,
+      });
+
+      return result.parsed;
+    } catch (error) {
+      logger.error('Salary Negotiation AI error', error);
+      throw error;
+    }
   }
 
   private defaultResult(): MatchResult {

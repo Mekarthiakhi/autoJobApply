@@ -9,10 +9,15 @@ export async function applyToJob(req: Request, res: Response) {
     const userId = req.userId;
     if (!userId) throw new AppError(401, 'Unauthorized');
 
-    const { jobId } = req.body;
+    const { jobId, resumeVersionId, coverLetterId, notes, matchScore } = req.body;
     if (!jobId) throw new AppError(400, 'Job ID required');
 
-    const application = await applicationRepository.create(userId, jobId);
+    const application = await applicationRepository.create(userId, jobId, {
+      resumeVersionId,
+      coverLetterId,
+      notes,
+      matchScore,
+    });
 
     res.status(201).json({
       message: 'Application submitted',
@@ -50,7 +55,10 @@ export async function updateApplicationStatus(req: Request, res: Response) {
 
     if (!status) throw new AppError(400, 'Status required');
 
-    const application = await applicationRepository.updateStatus(applicationId, status);
+    const application = await applicationRepository.updateStatus(applicationId, userId, status);
+    if (!application) {
+      throw new AppError(404, 'Application not found or unauthorized');
+    }
 
     res.json(application);
   } catch (error) {

@@ -12,15 +12,21 @@ interface NaukriJobData {
   apply_url: string;
   source: string;
   external_id: string;
+  status: string;
   posted_date: Date;
 }
 
-interface ApplyResult {
+export interface ApplyResult {
   success: boolean;
   appliedAt?: Date;
   message: string;
   jobUrl: string;
   error?: string;
+  draftOnly?: boolean;
+}
+
+export interface ApplyOptions {
+  explicitUserConfirmation?: boolean;
 }
 
 export class NaukriScraper {
@@ -99,12 +105,10 @@ export class NaukriScraper {
       logger.info('🔍 Starting Naukri job scraping...');
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent to avoid detection
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Build search URL with parameters
       const searchKeywords = keywords.join('%20');
@@ -185,6 +189,7 @@ export class NaukriScraper {
             apply_url: applyUrl,
             source: 'naukri',
             external_id: `naukri-${jobId}`,
+            status: 'NEW',
             posted_date: new Date(),
           };
 
@@ -208,13 +213,18 @@ export class NaukriScraper {
   }
 
   /**
-   * Apply to a job on Naukri using browser automation
+   * Apply to a job on Naukri using browser automation.
+   * SAFEGUARD: Operates in Draft Mode by default. Never clicks Submit without options.explicitUserConfirmation === true.
    */
-  async applyToJob(jobUrl: string, userProfile: any): Promise<ApplyResult> {
+  async applyToJob(
+    jobUrl: string,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<ApplyResult> {
     let page: Page | null = null;
 
     try {
-      logger.info(`📤 Starting Naukri auto-apply for: ${jobUrl}`);
+      logger.info(`📤 Starting Naukri application processing for: ${jobUrl}`);
 
       // Check if credentials are configured
       if (!this.naukriEmail || !this.naukriPassword) {
@@ -228,12 +238,10 @@ export class NaukriScraper {
       }
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Login to Naukri
       const loginSuccess = await this.loginToNaukri(page);
@@ -271,10 +279,20 @@ export class NaukriScraper {
       await applyButton.click();
       await page.waitForTimeout(1500);
 
-      // Handle application form
-      const applicationSuccess = await this.fillApplicationForm(page, userProfile);
+      // Handle application form (Draft Mode by default)
+      const formResult = await this.fillApplicationForm(page, userProfile, options);
 
-      if (applicationSuccess) {
+      if (formResult.success) {
+        if (!formResult.submitted) {
+          logger.info(`🛡️ [Safety Guard] Application draft prepared safely on Naukri for: ${jobUrl}`);
+          return {
+            success: true,
+            draftOnly: true,
+            message: 'Application draft prepared. Explicit user approval required to submit.',
+            jobUrl,
+          };
+        }
+
         logger.info(`✅ Successfully applied to job on Naukri: ${jobUrl}`);
         return {
           success: true,
@@ -287,7 +305,7 @@ export class NaukriScraper {
           success: false,
           message: 'Failed to complete application form',
           jobUrl,
-          error: 'Application form submission failed',
+          error: 'Application form preparation failed',
         };
       }
     } catch (error) {
@@ -306,11 +324,17 @@ export class NaukriScraper {
   }
 
   /**
-   * Fill Naukri application form
+   * Fill Naukri application form.
+   * SAFEGUARD: Only fills verified user details. Does not guess question answers or agree to terms.
+   * NEVER clicks submit unless options.explicitUserConfirmation === true.
    */
-  private async fillApplicationForm(page: Page, userProfile: any): Promise<boolean> {
+  private async fillApplicationForm(
+    page: Page,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<{ success: boolean; submitted: boolean }> {
     try {
-      logger.info('📝 Filling Naukri application form...');
+      logger.info('📝 Preparing Naukri application form draft...');
 
       // Wait for form to appear
       await page.waitForSelector('[data-qa="applicationForm"], form', { timeout: 10000 });
@@ -333,31 +357,29 @@ export class NaukriScraper {
         }
       }
 
-      // Look for submit button and click
+      // Look for submit button
       const submitButton = await page.locator('button:has-text("Submit"), button:has-text("Apply Now"), [data-qa="submitButton"]').first();
+      const hasSubmitButton = await submitButton.isVisible().catch(() => false);
 
-      if (await submitButton.isVisible()) {
+      // SAFEGUARD: Do not submit unless explicitly confirmed by user
+      if (!options.explicitUserConfirmation) {
+        logger.info('🛡️ [Safety Guard] Naukri form draft prepared. Stopped before final submission (explicit confirmation required).');
+        return { success: true, submitted: false };
+      }
+
+      if (hasSubmitButton) {
         await submitButton.click();
-        logger.info('✅ Application form submitted on Naukri');
+        logger.info('✅ Application form submitted on Naukri with explicit user confirmation');
 
-        // Wait for success message or navigation
         await page.waitForTimeout(3000);
-
-        // Check for success confirmation
-        const successMessage = await page.locator('text=/Successfully|Application|Thank you|Applied/i').first();
-        if (await successMessage.isVisible().catch(() => false)) {
-          logger.info('✅ Application success confirmed on Naukri');
-          return true;
-        }
-
-        return true; // Assume success if submit was clicked
+        return { success: true, submitted: true };
       } else {
         logger.warn('⚠️ Submit button not found on Naukri form');
-        return false;
+        return { success: false, submitted: false };
       }
     } catch (error) {
       logger.error('Error filling Naukri application form:', error);
-      return false;
+      return { success: false, submitted: false };
     }
   }
 }

@@ -119,18 +119,20 @@ export class UnifiedJobScraper {
   }
 
   /**
-   * Apply to a job on a specific platform
+   * Apply to a job on a specific platform.
+   * SAFEGUARD: Operates in Draft Mode by default. Never submits without explicitUserConfirmation.
    */
   async applyToJob(
     platform: 'linkedin' | 'naukri' | 'indeed' | 'careerpages' | 'glassdoor',
     jobUrl: string,
-    userProfile: any
+    userProfile: any,
+    options: { explicitUserConfirmation?: boolean } = {}
   ): Promise<MultiPlatformApplyResult> {
     try {
-      logger.info(`📤 Applying to ${platform} job: ${jobUrl}`);
+      logger.info(`📤 Processing ${platform} job application: ${jobUrl} (explicitUserConfirmation: ${!!options.explicitUserConfirmation})`);
 
       const scraper = this.scrapers[platform];
-      const result = await scraper.applyToJob(jobUrl, userProfile);
+      const result = await scraper.applyToJob(jobUrl, userProfile, options);
 
       return {
         platform,
@@ -157,18 +159,19 @@ export class UnifiedJobScraper {
    */
   async applyToMultiplePlatforms(
     jobs: Array<{ platform: string; jobUrl: string }>,
-    userProfile: any
+    userProfile: any,
+    options: { explicitUserConfirmation?: boolean } = {}
   ): Promise<MultiPlatformApplyResult[]> {
-    logger.info(`📤 Starting multi-platform applications for ${jobs.length} jobs`);
+    logger.info(`📤 Starting multi-platform application processing for ${jobs.length} jobs (explicitUserConfirmation: ${!!options.explicitUserConfirmation})`);
 
     const applyPromises = jobs.map((job) =>
-      this.applyToJob(job.platform as any, job.jobUrl, userProfile)
+      this.applyToJob(job.platform as any, job.jobUrl, userProfile, options)
     );
 
     const results = await Promise.all(applyPromises);
 
     const successCount = results.filter((r) => r.result.success).length;
-    logger.info(`✅ Multi-platform applications completed: ${successCount}/${jobs.length} successful`);
+    logger.info(`✅ Multi-platform applications processed: ${successCount}/${jobs.length} successful`);
 
     return results;
   }

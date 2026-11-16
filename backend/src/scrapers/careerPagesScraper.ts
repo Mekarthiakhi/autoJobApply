@@ -12,15 +12,21 @@ interface CareerPagesJobData {
   apply_url: string;
   source: string;
   external_id: string;
+  status: string;
   posted_date: Date;
 }
 
-interface ApplyResult {
+export interface ApplyResult {
   success: boolean;
   appliedAt?: Date;
   message: string;
   jobUrl: string;
   error?: string;
+  draftOnly?: boolean;
+}
+
+export interface ApplyOptions {
+  explicitUserConfirmation?: boolean;
 }
 
 export class CareerPagesScraper {
@@ -59,12 +65,10 @@ export class CareerPagesScraper {
       logger.info('🔍 Starting CareerPages job scraping...');
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent to avoid detection
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Build search URL
       const searchKeywords = keywords.join('+');
@@ -145,6 +149,7 @@ export class CareerPagesScraper {
             apply_url: applyUrl,
             source: 'careerpages',
             external_id: `careerpages-${jobId}`,
+            status: 'NEW',
             posted_date: new Date(),
           };
 
@@ -168,21 +173,24 @@ export class CareerPagesScraper {
   }
 
   /**
-   * Apply to a job on CareerPages using browser automation
+   * Apply to a job on CareerPages using browser automation.
+   * SAFEGUARD: Operates in Draft Mode by default. Never clicks Submit without options.explicitUserConfirmation === true.
    */
-  async applyToJob(jobUrl: string, userProfile: any): Promise<ApplyResult> {
+  async applyToJob(
+    jobUrl: string,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<ApplyResult> {
     let page: Page | null = null;
 
     try {
-      logger.info(`📤 Starting CareerPages auto-apply for: ${jobUrl}`);
+      logger.info(`📤 Starting CareerPages application processing for: ${jobUrl}`);
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Navigate to job posting
       logger.info(`🔗 Navigating to job: ${jobUrl}`);
@@ -209,10 +217,20 @@ export class CareerPagesScraper {
       await applyButton.click();
       await page.waitForTimeout(1500);
 
-      // Handle application form
-      const applicationSuccess = await this.fillApplicationForm(page, userProfile);
+      // Handle application form (Draft Mode by default)
+      const formResult = await this.fillApplicationForm(page, userProfile, options);
 
-      if (applicationSuccess) {
+      if (formResult.success) {
+        if (!formResult.submitted) {
+          logger.info(`🛡️ [Safety Guard] Application draft prepared safely on CareerPages for: ${jobUrl}`);
+          return {
+            success: true,
+            draftOnly: true,
+            message: 'Application draft prepared. Explicit user approval required to submit.',
+            jobUrl,
+          };
+        }
+
         logger.info(`✅ Successfully applied to job on CareerPages: ${jobUrl}`);
         return {
           success: true,
@@ -225,7 +243,7 @@ export class CareerPagesScraper {
           success: false,
           message: 'Failed to complete application form',
           jobUrl,
-          error: 'Application form submission failed',
+          error: 'Application form preparation failed',
         };
       }
     } catch (error) {
@@ -244,11 +262,17 @@ export class CareerPagesScraper {
   }
 
   /**
-   * Fill CareerPages application form
+   * Fill CareerPages application form.
+   * SAFEGUARD: Only fills verified user details. Does not guess question answers or agree to terms.
+   * NEVER clicks submit unless options.explicitUserConfirmation === true.
    */
-  private async fillApplicationForm(page: Page, userProfile: any): Promise<boolean> {
+  private async fillApplicationForm(
+    page: Page,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<{ success: boolean; submitted: boolean }> {
     try {
-      logger.info('📝 Filling CareerPages application form...');
+      logger.info('📝 Preparing CareerPages application form draft...');
 
       // Wait for form to appear
       await page.waitForSelector('form, [data-testid="applicationForm"]', { timeout: 10000 }).catch(() => {});
@@ -271,24 +295,29 @@ export class CareerPagesScraper {
         }
       }
 
-      // Look for submit button and click
+      // Look for submit button
       const submitButton = await page.locator('button:has-text("Submit"), button:has-text("Apply"), button[type="submit"]').first();
+      const hasSubmitButton = await submitButton.isVisible().catch(() => false);
 
-      if (await submitButton.isVisible().catch(() => false)) {
+      // SAFEGUARD: Do not submit unless explicitly confirmed by user
+      if (!options.explicitUserConfirmation) {
+        logger.info('🛡️ [Safety Guard] CareerPages form draft prepared. Stopped before final submission (explicit confirmation required).');
+        return { success: true, submitted: false };
+      }
+
+      if (hasSubmitButton) {
         await submitButton.click();
-        logger.info('✅ Application form submitted on CareerPages');
+        logger.info('✅ Application form submitted on CareerPages with explicit user confirmation');
 
-        // Wait for confirmation
         await page.waitForTimeout(3000);
-
-        return true;
+        return { success: true, submitted: true };
       } else {
         logger.warn('⚠️ Submit button not found on CareerPages form');
-        return false;
+        return { success: false, submitted: false };
       }
     } catch (error) {
       logger.error('Error filling CareerPages application form:', error);
-      return false;
+      return { success: false, submitted: false };
     }
   }
 }

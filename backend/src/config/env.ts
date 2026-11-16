@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'path';
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -11,9 +12,42 @@ export const env = {
   DB_SSL: process.env.DB_SSL === 'true',
   JWT_SECRET: process.env.JWT_SECRET || 'your-secret-key',
   JWT_EXPIRE: process.env.JWT_EXPIRE || '7d',
+  CORS_ORIGIN: process.env.CORS_ORIGIN || '',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '',
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
   TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || '',
+  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
+  GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || '',
   RESUME_MAX_SIZE: 5 * 1024 * 1024, // 5MB
+
+  // New: directories for agent outputs
+  SCREENSHOTS_DIR: process.env.SCREENSHOTS_DIR || path.resolve(process.cwd(), 'screenshots'),
+  EXPORT_DIR: process.env.EXPORT_DIR || path.resolve(process.cwd(), 'exports'),
 };
+
+export function validateEnvironmentSecurity(): { isSecure: boolean; issues: string[] } {
+  const issues: string[] = [];
+  const isStrict = env.NODE_ENV === 'production' || env.NODE_ENV === 'staging';
+
+  if (isStrict) {
+    if (env.JWT_SECRET === 'your-secret-key' || env.JWT_SECRET.length < 32) {
+      issues.push(`JWT_SECRET must be at least 32 characters long in ${env.NODE_ENV} and cannot use default fallback`);
+    }
+    if (!env.CORS_ORIGIN || env.CORS_ORIGIN === '*' || env.CORS_ORIGIN.split(',').map(s => s.trim()).includes('*')) {
+      issues.push(`CORS_ORIGIN cannot be unset, wildcard (*), or contain wildcard in ${env.NODE_ENV}`);
+    }
+  } else {
+    if (env.JWT_SECRET === 'your-secret-key' || env.JWT_SECRET.length < 16) {
+      issues.push('JWT_SECRET is using default insecure secret or length < 16 characters');
+    }
+  }
+
+  return {
+    isSecure: issues.length === 0,
+    issues,
+  };
+}

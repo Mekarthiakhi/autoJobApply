@@ -12,15 +12,21 @@ interface GlassdoorJobData {
   apply_url: string;
   source: string;
   external_id: string;
+  status: string;
   posted_date: Date;
 }
 
-interface ApplyResult {
+export interface ApplyResult {
   success: boolean;
   appliedAt?: Date;
   message: string;
   jobUrl: string;
   error?: string;
+  draftOnly?: boolean;
+}
+
+export interface ApplyOptions {
+  explicitUserConfirmation?: boolean;
 }
 
 export class GlassdoorScraper {
@@ -100,12 +106,10 @@ export class GlassdoorScraper {
       logger.info('🔍 Starting Glassdoor job scraping...');
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent to avoid detection
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Build search URL
       const searchKeywords = keywords.join('+');
@@ -186,6 +190,7 @@ export class GlassdoorScraper {
             apply_url: applyUrl,
             source: 'glassdoor',
             external_id: `glassdoor-${jobId}`,
+            status: 'NEW',
             posted_date: new Date(),
           };
 
@@ -209,13 +214,18 @@ export class GlassdoorScraper {
   }
 
   /**
-   * Apply to a job on Glassdoor using browser automation
+   * Apply to a job on Glassdoor using browser automation.
+   * SAFEGUARD: Operates in Draft Mode by default. Never clicks Submit without options.explicitUserConfirmation === true.
    */
-  async applyToJob(jobUrl: string, userProfile: any): Promise<ApplyResult> {
+  async applyToJob(
+    jobUrl: string,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<ApplyResult> {
     let page: Page | null = null;
 
     try {
-      logger.info(`📤 Starting Glassdoor auto-apply for: ${jobUrl}`);
+      logger.info(`📤 Starting Glassdoor application processing for: ${jobUrl}`);
 
       // Check if credentials are configured
       if (!this.glassdoorEmail || !this.glassdoorPassword) {
@@ -229,12 +239,10 @@ export class GlassdoorScraper {
       }
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Login to Glassdoor
       const loginSuccess = await this.loginToGlassdoor(page);
@@ -272,10 +280,20 @@ export class GlassdoorScraper {
       await applyButton.click();
       await page.waitForTimeout(1500);
 
-      // Handle application form
-      const applicationSuccess = await this.fillApplicationForm(page, userProfile);
+      // Handle application form (Draft Mode by default)
+      const formResult = await this.fillApplicationForm(page, userProfile, options);
 
-      if (applicationSuccess) {
+      if (formResult.success) {
+        if (!formResult.submitted) {
+          logger.info(`🛡️ [Safety Guard] Application draft prepared safely on Glassdoor for: ${jobUrl}`);
+          return {
+            success: true,
+            draftOnly: true,
+            message: 'Application draft prepared. Explicit user approval required to submit.',
+            jobUrl,
+          };
+        }
+
         logger.info(`✅ Successfully applied to job on Glassdoor: ${jobUrl}`);
         return {
           success: true,
@@ -288,7 +306,7 @@ export class GlassdoorScraper {
           success: false,
           message: 'Failed to complete application form',
           jobUrl,
-          error: 'Application form submission failed',
+          error: 'Application form preparation failed',
         };
       }
     } catch (error) {
@@ -307,11 +325,17 @@ export class GlassdoorScraper {
   }
 
   /**
-   * Fill Glassdoor application form
+   * Fill Glassdoor application form.
+   * SAFEGUARD: Only fills verified user details. Does not guess question answers or agree to terms.
+   * NEVER clicks submit unless options.explicitUserConfirmation === true.
    */
-  private async fillApplicationForm(page: Page, userProfile: any): Promise<boolean> {
+  private async fillApplicationForm(
+    page: Page,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<{ success: boolean; submitted: boolean }> {
     try {
-      logger.info('📝 Filling Glassdoor application form...');
+      logger.info('📝 Preparing Glassdoor application form draft...');
 
       // Wait for form to appear
       await page.waitForSelector('form, [data-test-id="applicationForm"]', { timeout: 10000 }).catch(() => {});
@@ -345,31 +369,29 @@ export class GlassdoorScraper {
         }
       }
 
-      // Look for submit button and click
+      // Look for submit button
       const submitButton = await page.locator('button:has-text("Submit"), button:has-text("Apply"), button:has-text("Send Application"), button[type="submit"]').first();
+      const hasSubmitButton = await submitButton.isVisible().catch(() => false);
 
-      if (await submitButton.isVisible().catch(() => false)) {
+      // SAFEGUARD: Do not submit unless explicitly confirmed by user
+      if (!options.explicitUserConfirmation) {
+        logger.info('🛡️ [Safety Guard] Glassdoor form draft prepared. Stopped before final submission (explicit confirmation required).');
+        return { success: true, submitted: false };
+      }
+
+      if (hasSubmitButton) {
         await submitButton.click();
-        logger.info('✅ Application form submitted on Glassdoor');
+        logger.info('✅ Application form submitted on Glassdoor with explicit user confirmation');
 
-        // Wait for confirmation
         await page.waitForTimeout(3000);
-
-        // Check for success confirmation
-        const successMessage = await page.locator('text=/Successfully|Application|Thank you|Applied|submitted/i').first();
-        if (await successMessage.isVisible().catch(() => false)) {
-          logger.info('✅ Application success confirmed on Glassdoor');
-          return true;
-        }
-
-        return true; // Assume success if submit was clicked
+        return { success: true, submitted: true };
       } else {
         logger.warn('⚠️ Submit button not found on Glassdoor form');
-        return false;
+        return { success: false, submitted: false };
       }
     } catch (error) {
       logger.error('Error filling Glassdoor application form:', error);
-      return false;
+      return { success: false, submitted: false };
     }
   }
 }

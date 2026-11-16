@@ -1,5 +1,6 @@
 import { chromium, Browser, Page } from 'playwright';
 import { logger } from '../utils/logger.js';
+import { popupAgent } from '../services/popupAgent.js';
 
 interface IndeedJobData {
   title: string;
@@ -12,15 +13,21 @@ interface IndeedJobData {
   apply_url: string;
   source: string;
   external_id: string;
+  status: string;
   posted_date: Date;
 }
 
-interface ApplyResult {
+export interface ApplyResult {
   success: boolean;
   appliedAt?: Date;
   message: string;
   jobUrl: string;
   error?: string;
+  draftOnly?: boolean;
+}
+
+export interface ApplyOptions {
+  explicitUserConfirmation?: boolean;
 }
 
 export class IndeedScraper {
@@ -33,10 +40,13 @@ export class IndeedScraper {
    */
   private async initBrowser(): Promise<Browser> {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-        args: ['--disable-blink-features=AutomationControlled'],
-      });
+      try {
+        this.browser = await chromium.connectOverCDP('http://localhost:9222');
+        logger.info('✅ Successfully connected to local Chrome via CDP');
+      } catch (error) {
+        logger.error('❌ Failed to connect to local Chrome. Did you start it with --remote-debugging-port=9222?', error);
+        throw new Error('Chrome CDP connection failed');
+      }
     }
     return this.browser;
   }
@@ -91,12 +101,10 @@ export class IndeedScraper {
       logger.info('🔍 Starting Indeed job scraping...');
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent to avoid detection
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Build search URL
       const searchKeywords = keywords.join('+');
@@ -174,6 +182,7 @@ export class IndeedScraper {
             apply_url: applyUrl,
             source: 'indeed',
             external_id: `indeed-${jobId}`,
+            status: 'NEW',
             posted_date: new Date(),
           };
 
@@ -197,25 +206,31 @@ export class IndeedScraper {
   }
 
   /**
-   * Apply to a job on Indeed using browser automation
+   * Apply to a job on Indeed using browser automation.
+   * SAFEGUARD: Operates in Draft Mode by default. Never clicks Submit without options.explicitUserConfirmation === true.
    */
-  async applyToJob(jobUrl: string, userProfile: any): Promise<ApplyResult> {
+  async applyToJob(
+    jobUrl: string,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<ApplyResult> {
     let page: Page | null = null;
 
     try {
-      logger.info(`📤 Starting Indeed auto-apply for: ${jobUrl}`);
+      logger.info(`📤 Starting Indeed application processing for: ${jobUrl}`);
 
       const browser = await this.initBrowser();
-      page = await browser.newPage();
-
-      // Set user agent
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      page = await context.newPage();
 
       // Navigate to job posting
       logger.info(`🔗 Navigating to job: ${jobUrl}`);
       await page.goto(jobUrl, { waitUntil: 'networkidle', timeout: 30000 });
+
+      // Automatically accept cookies, dismiss dialogs, or handle popups safely
+      await popupAgent.autoHandleAll(page);
 
       // Wait for page to load
       await page.waitForTimeout(2000);
@@ -238,10 +253,20 @@ export class IndeedScraper {
       await applyButton.click();
       await page.waitForTimeout(1500);
 
-      // Handle application form
-      const applicationSuccess = await this.fillApplicationForm(page, userProfile);
+      // Handle application form (Draft Mode by default)
+      const formResult = await this.fillApplicationForm(page, userProfile, options);
 
-      if (applicationSuccess) {
+      if (formResult.success) {
+        if (!formResult.submitted) {
+          logger.info(`🛡️ [Safety Guard] Application draft prepared safely on Indeed for: ${jobUrl}`);
+          return {
+            success: true,
+            draftOnly: true,
+            message: 'Application draft prepared. Explicit user approval required to submit.',
+            jobUrl,
+          };
+        }
+
         logger.info(`✅ Successfully applied to job on Indeed: ${jobUrl}`);
         return {
           success: true,
@@ -254,7 +279,7 @@ export class IndeedScraper {
           success: false,
           message: 'Failed to complete application form',
           jobUrl,
-          error: 'Application form submission failed',
+          error: 'Application form preparation failed',
         };
       }
     } catch (error) {
@@ -273,11 +298,20 @@ export class IndeedScraper {
   }
 
   /**
-   * Fill Indeed application form
+   * Fill Indeed application form.
+   * SAFEGUARD: Only fills verified user details. Does not guess question answers or agree to terms.
+   * NEVER clicks submit unless options.explicitUserConfirmation === true.
    */
-  private async fillApplicationForm(page: Page, userProfile: any): Promise<boolean> {
+  private async fillApplicationForm(
+    page: Page,
+    userProfile: any,
+    options: ApplyOptions = {}
+  ): Promise<{ success: boolean; submitted: boolean }> {
     try {
-      logger.info('📝 Filling Indeed application form...');
+      logger.info('📝 Preparing Indeed application form draft...');
+
+      // Safe cookie / modal dismissal
+      await popupAgent.autoHandleAll(page);
 
       // Wait for form to appear
       await page.waitForSelector('form, [data-testid="applicationForm"]', { timeout: 10000 }).catch(() => {});
@@ -285,7 +319,7 @@ export class IndeedScraper {
       // Get all form fields
       const textInputs = await page.locator('input[type="text"], textarea, input[type="email"], input[type="tel"]').all();
 
-      // Fill text fields
+      // Fill text fields with verified profile info
       for (const input of textInputs) {
         const placeholder = await input.getAttribute('placeholder');
         const name = await input.getAttribute('name');
@@ -300,24 +334,38 @@ export class IndeedScraper {
         }
       }
 
-      // Look for submit button and click
+      // Handle file uploads (Resume)
+      const fileInputs = await page.locator('input[type="file"]').all();
+      for (const fileInput of fileInputs) {
+        if (userProfile.resumePath) {
+          await fileInput.setInputFiles(userProfile.resumePath).catch(() => {});
+          logger.info('📎 Uploaded resume file via Playwright');
+        }
+      }
+
+      // Look for submit button
       const submitButton = await page.locator('button:has-text("Submit"), button:has-text("Apply"), button[type="submit"]').first();
+      const hasSubmitButton = await submitButton.isVisible().catch(() => false);
 
-      if (await submitButton.isVisible().catch(() => false)) {
+      // SAFEGUARD: Do not submit unless explicitly confirmed by user
+      if (!options.explicitUserConfirmation) {
+        logger.info('🛡️ [Safety Guard] Indeed form draft prepared. Stopped before final submission (explicit confirmation required).');
+        return { success: true, submitted: false };
+      }
+
+      if (hasSubmitButton) {
         await submitButton.click();
-        logger.info('✅ Application form submitted on Indeed');
+        logger.info('✅ Application form submitted on Indeed with explicit user confirmation');
 
-        // Wait for confirmation
         await page.waitForTimeout(3000);
-
-        return true;
+        return { success: true, submitted: true };
       } else {
         logger.warn('⚠️ Submit button not found on Indeed form');
-        return false;
+        return { success: false, submitted: false };
       }
     } catch (error) {
       logger.error('Error filling Indeed application form:', error);
-      return false;
+      return { success: false, submitted: false };
     }
   }
 }
