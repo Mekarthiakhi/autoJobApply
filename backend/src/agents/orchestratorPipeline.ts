@@ -19,6 +19,8 @@ export interface WorkflowPipelineOptions {
   skipBrowserInspection?: boolean;
   skipDiscovery?: boolean;
   initialJobIds?: string[];
+  mode?: 'live' | 'test' | 'simulation';
+  fastTest?: boolean;
 }
 
 export interface WorkflowPipelineSummary {
@@ -80,6 +82,8 @@ export class MultiAgentPipelineOrchestrator {
             targetLocations: plan.targetLocations,
             platforms: plan.preferredPlatforms,
             limitPerPlatform: options.limitJobs || 10,
+            mode: options.mode,
+            fastTest: options.fastTest,
           },
           ctx
         );

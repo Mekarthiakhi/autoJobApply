@@ -19,7 +19,19 @@ export const Settings: React.FC = () => {
       try {
         const response = await authAPI.getProfile();
         const profile = response.data;
-        if (profile.preferredLocations) setPreferredLocations(profile.preferredLocations);
+        if (profile.preferredLocations) {
+          let locs = profile.preferredLocations;
+          if (typeof locs === 'string') {
+            try {
+              locs = JSON.parse(locs);
+            } catch {
+              locs = locs.split(',').map((s: string) => s.trim()).filter(Boolean);
+            }
+          }
+          if (Array.isArray(locs) && locs.length > 0) {
+            setPreferredLocations(locs);
+          }
+        }
         if (profile.minMatchScore) setMinMatchScore(profile.minMatchScore);
         if (profile.telegramEnabled !== undefined) setTelegramEnabled(profile.telegramEnabled);
       } catch (error) {
@@ -97,7 +109,7 @@ export const Settings: React.FC = () => {
           </div>
           
           <div className="tag-list">
-            {preferredLocations.map((location) => (
+            {(Array.isArray(preferredLocations) ? preferredLocations : []).map((location) => (
               <div key={location} className="tag">
                 {location} 
                 <span className="x" onClick={() => setPreferredLocations(preferredLocations.filter((l) => l !== location))}>✕</span>

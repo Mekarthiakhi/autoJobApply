@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, FileCheck, Building2, FileText, BarChart3, Inbox, Activity, Files, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileCheck, Building2, FileText, BarChart3, Inbox, Activity, Files, Settings as SettingsIcon, LogOut, Bot } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './Common.module.css';
 
@@ -26,6 +26,14 @@ export const Sidebar: React.FC = () => {
         >
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
+        </NavLink>
+
+        <NavLink 
+          to="/agents" 
+          className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
+        >
+          <Bot size={20} />
+          <span>Agents Studio</span>
         </NavLink>
 
         <NavLink 

@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { dashboardAPI } from '../../api/auth';
+import { dashboardAPI, agentsAPI } from '../../api/auth';
+import { Link } from 'react-router-dom';
 import {
   Search, Sparkles, Target, ArrowUp, Inbox, CheckCircle2,
   Send, AlertTriangle, Clock, XCircle, Filter,
-  RefreshCw, ChevronRight, Layers, Award
+  RefreshCw, ChevronRight, Layers, Award, Zap, Bot
 } from 'lucide-react';
 
 interface MetricData {
@@ -124,6 +125,21 @@ export const Dashboard: React.FC = () => {
     fetchDashboard();
   }, [fetchDashboard]);
 
+  const [testingAsUser, setTestingAsUser] = useState(false);
+
+  const handleTestAsUser = async () => {
+    try {
+      setTestingAsUser(true);
+      const response = await agentsAPI.testAsUser({ fastTest: true, limitJobs: 2 });
+      alert(response.data?.message || 'Agent test completed as user!');
+      fetchDashboard();
+    } catch (err: any) {
+      alert('Error testing agent: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setTestingAsUser(false);
+    }
+  };
+
   const handleRunAgents = async () => {
     try {
       setRunningAgents(true);
@@ -179,16 +195,36 @@ export const Dashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={handleTestAsUser}
+            disabled={testingAsUser}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
+            style={{
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            }}
+          >
+            <Zap size={14} className={testingAsUser ? 'animate-spin' : ''} />
+            <span>{testingAsUser ? 'Testing...' : 'Test Agent as User'}</span>
+          </button>
+
+          <button
             onClick={handleRunAgents}
             disabled={runningAgents}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm text-white shadow-lg shadow-indigo-900/30 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs text-white shadow-md shadow-indigo-900/30 transition-all cursor-pointer disabled:opacity-50"
             style={{
               background: 'linear-gradient(135deg, #6C63FF 0%, #4B45B2 100%)',
             }}
           >
-            <RefreshCw size={16} className={runningAgents ? 'animate-spin' : ''} />
-            <span>{runningAgents ? 'Running Agents...' : 'Run Agents Now'}</span>
+            <RefreshCw size={14} className={runningAgents ? 'animate-spin' : ''} />
+            <span>{runningAgents ? 'Running...' : 'Run Pipeline'}</span>
           </button>
+
+          <Link
+            to="/agents"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all"
+          >
+            <Bot size={14} className="text-indigo-400" />
+            <span>Agents Studio</span>
+          </Link>
         </div>
       </div>
 
@@ -327,150 +363,150 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 11 Core Metrics Grid (Requirements: Real DB, Documented, Non-Misleading) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 11 Core Metrics Grid (Compact, Sleek & Premium Design) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Metric 1: Jobs Discovered */}
-        <div className="kpi-card kpi-blue p-5 rounded-xl bg-gray-900/60 border border-indigo-500/20">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-indigo-500/30 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="kpi-icon blue p-2.5 rounded-lg bg-indigo-950/60"><Search size={18} color="#A5A0FF" /></div>
+            <div className="p-1.5 rounded-lg bg-indigo-950/70 border border-indigo-500/30"><Search size={16} className="text-indigo-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Discovery</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-white mt-3">{metrics.totalJobsDiscovered}</div>
+          <div className="kpi-num text-2xl font-bold text-white mt-2">{metrics.totalJobsDiscovered}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Total Jobs Discovered</div>
-          <div className="kpi-trend text-[11px] text-indigo-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-indigo-400 mt-1.5 flex items-center">
             <ArrowUp size={11} className="inline mr-1" /> active normalized pool
           </div>
         </div>
 
         {/* Metric 2: Jobs Shortlisted */}
-        <div className="kpi-card kpi-green p-5 rounded-xl bg-gray-900/60 border border-emerald-500/20">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-emerald-500/30 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="kpi-icon green p-2.5 rounded-lg bg-emerald-950/60"><Sparkles size={18} color="#4ADE80" /></div>
+            <div className="p-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/30"><Sparkles size={16} className="text-emerald-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Match Rank</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-emerald-400 mt-3">{metrics.jobsShortlisted}</div>
+          <div className="kpi-num text-2xl font-bold text-emerald-400 mt-2">{metrics.jobsShortlisted}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Jobs Shortlisted</div>
-          <div className="kpi-trend text-[11px] text-emerald-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-emerald-400 mt-1.5 flex items-center">
             <ArrowUp size={11} className="inline mr-1" /> compatibility &ge; 70%
           </div>
         </div>
 
         {/* Metric 3: Applications Prepared */}
-        <div className="kpi-card p-5 rounded-xl bg-gray-900/60 border border-purple-500/20">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-purple-500/30 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="p-2.5 rounded-lg bg-purple-950/60"><Layers size={18} className="text-purple-400" /></div>
+            <div className="p-1.5 rounded-lg bg-purple-950/70 border border-purple-500/30"><Layers size={16} className="text-purple-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Drafts</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-purple-300 mt-3">{metrics.applicationsPrepared}</div>
+          <div className="kpi-num text-2xl font-bold text-purple-300 mt-2">{metrics.applicationsPrepared}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Applications Prepared</div>
-          <div className="kpi-trend text-[11px] text-purple-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-purple-400 mt-1.5 flex items-center">
             tailored resume & cover letter
           </div>
         </div>
 
         {/* Metric 4: Awaiting Review */}
-        <div className="kpi-card p-5 rounded-xl bg-gray-900/60 border border-pink-500/30">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-pink-500/40 hover:border-pink-500/60 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="p-2.5 rounded-lg bg-pink-950/60"><Inbox size={18} color="#EC4899" /></div>
+            <div className="p-1.5 rounded-lg bg-pink-950/70 border border-pink-500/40"><Inbox size={16} className="text-pink-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-pink-400 font-semibold">Action Required</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-pink-400 mt-3">{metrics.applicationsAwaitingReview}</div>
+          <div className="kpi-num text-2xl font-bold text-pink-400 mt-2">{metrics.applicationsAwaitingReview}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Awaiting Review</div>
-          <div className="kpi-trend text-[11px] text-pink-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-pink-400 mt-1.5 flex items-center">
             pending candidate verification
           </div>
         </div>
 
         {/* Metric 5: Approved */}
-        <div className="kpi-card p-5 rounded-xl bg-gray-900/60 border border-teal-500/20">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-teal-500/30 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="p-2.5 rounded-lg bg-teal-950/60"><CheckCircle2 size={18} className="text-teal-400" /></div>
+            <div className="p-1.5 rounded-lg bg-teal-950/70 border border-teal-500/30"><CheckCircle2 size={16} className="text-teal-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Authorized</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-teal-300 mt-3">{metrics.applicationsApproved}</div>
+          <div className="kpi-num text-2xl font-bold text-teal-300 mt-2">{metrics.applicationsApproved}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Applications Approved</div>
-          <div className="kpi-trend text-[11px] text-teal-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-teal-400 mt-1.5 flex items-center">
             SHA-256 hash bound
           </div>
         </div>
 
         {/* Metric 6: Submitted */}
-        <div className="kpi-card p-5 rounded-xl bg-gray-900/60 border border-blue-500/20">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-blue-500/30 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="p-2.5 rounded-lg bg-blue-950/60"><Send size={18} className="text-blue-400" /></div>
+            <div className="p-1.5 rounded-lg bg-blue-950/70 border border-blue-500/30"><Send size={16} className="text-blue-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Execution</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-blue-300 mt-3">{metrics.applicationsSubmitted}</div>
+          <div className="kpi-num text-2xl font-bold text-blue-300 mt-2">{metrics.applicationsSubmitted}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Applications Submitted</div>
-          <div className="kpi-trend text-[11px] text-blue-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-blue-400 mt-1.5 flex items-center">
             confirmed on job portal
           </div>
         </div>
 
         {/* Metric 7: Failed Applications */}
-        <div className="kpi-card p-5 rounded-xl bg-gray-900/60 border border-rose-500/20">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-rose-500/30 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="p-2.5 rounded-lg bg-rose-950/60"><XCircle size={18} className="text-rose-400" /></div>
+            <div className="p-1.5 rounded-lg bg-rose-950/70 border border-rose-500/30"><XCircle size={16} className="text-rose-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Failures</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-rose-400 mt-3">{metrics.failedApplications}</div>
+          <div className="kpi-num text-2xl font-bold text-rose-400 mt-2">{metrics.failedApplications}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Failed Applications</div>
-          <div className="kpi-trend text-[11px] text-rose-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-rose-400 mt-1.5 flex items-center">
             challenge or network error
           </div>
         </div>
 
         {/* Metric 8: Interview Invitations */}
-        <div className="kpi-card kpi-amber p-5 rounded-xl bg-gray-900/60 border border-amber-500/20">
+        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-amber-500/30 transition-all shadow-sm">
           <div className="flex justify-between items-start">
-            <div className="kpi-icon amber p-2.5 rounded-lg bg-amber-950/60"><Target size={18} color="#FBBF24" /></div>
+            <div className="p-1.5 rounded-lg bg-amber-950/70 border border-amber-500/30"><Target size={16} className="text-amber-400" /></div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Interviews</span>
           </div>
-          <div className="kpi-num text-3xl font-extrabold text-amber-400 mt-3">{metrics.interviewInvitations}</div>
+          <div className="kpi-num text-2xl font-bold text-amber-400 mt-2">{metrics.interviewInvitations}</div>
           <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Interview Invitations</div>
-          <div className="kpi-trend text-[11px] text-amber-400 mt-2 flex items-center">
+          <div className="kpi-trend text-[11px] text-amber-400 mt-1.5 flex items-center">
             rounds in progress
           </div>
         </div>
       </div>
 
-      {/* Efficiency & Conversion Strip (Metrics 9, 10, 11) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Efficiency & Conversion Strip (Metrics 9, 10, 11 - Compact) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Metric 9: Rejection Rate */}
-        <div className="p-5 rounded-xl bg-gray-900/70 border border-gray-800 flex justify-between items-center">
+        <div className="p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 flex justify-between items-center shadow-sm">
           <div>
-            <span className="text-xs text-gray-400 uppercase font-semibold">Rejection Rate</span>
-            <div className="text-2xl font-bold text-gray-200 mt-1">{metrics.rejectionRate}%</div>
-            <p className="text-[11px] text-gray-500 mt-0.5">rejections / total processed</p>
+            <span className="text-[11px] text-gray-400 uppercase font-semibold">Rejection Rate</span>
+            <div className="text-xl font-bold text-gray-200 mt-0.5">{metrics.rejectionRate}%</div>
+            <p className="text-[10px] text-gray-500 mt-0.5">rejections / total processed</p>
           </div>
           <div className="text-right">
-            <span className="text-xs px-2.5 py-1 rounded bg-gray-800 text-gray-400 font-mono">
+            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-gray-400 font-mono">
               Benchmark &lt; 85%
             </span>
           </div>
         </div>
 
         {/* Metric 10: Application Conversion Rate */}
-        <div className="p-5 rounded-xl bg-gray-900/70 border border-gray-800 flex justify-between items-center">
+        <div className="p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 flex justify-between items-center shadow-sm">
           <div>
-            <span className="text-xs text-gray-400 uppercase font-semibold">Conversion Rate</span>
-            <div className="text-2xl font-bold text-emerald-400 mt-1">{metrics.applicationConversionRate}%</div>
-            <p className="text-[11px] text-gray-500 mt-0.5">interviews + offers / submitted</p>
+            <span className="text-[11px] text-gray-400 uppercase font-semibold">Conversion Rate</span>
+            <div className="text-xl font-bold text-emerald-400 mt-0.5">{metrics.applicationConversionRate}%</div>
+            <p className="text-[10px] text-gray-500 mt-0.5">interviews + offers / submitted</p>
           </div>
           <div className="text-right">
-            <Award className="text-emerald-400 ml-auto" size={28} />
+            <Award className="text-emerald-400 ml-auto" size={24} />
           </div>
         </div>
 
         {/* Metric 11: Average Time from Discovery to Submission */}
-        <div className="p-5 rounded-xl bg-gray-900/70 border border-gray-800 flex justify-between items-center">
+        <div className="p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 flex justify-between items-center shadow-sm">
           <div>
-            <span className="text-xs text-gray-400 uppercase font-semibold">Avg Discovery-to-Submit</span>
-            <div className="text-2xl font-bold text-indigo-300 mt-1">{metrics.avgTimeDiscoveryToSubmissionFormatted}</div>
-            <p className="text-[11px] text-gray-500 mt-0.5">mean preparation cycle</p>
+            <span className="text-[11px] text-gray-400 uppercase font-semibold">Avg Discovery-to-Submit</span>
+            <div className="text-xl font-bold text-indigo-300 mt-0.5">{metrics.avgTimeDiscoveryToSubmissionFormatted}</div>
+            <p className="text-[10px] text-gray-500 mt-0.5">mean preparation cycle</p>
           </div>
           <div className="text-right">
-            <Clock className="text-indigo-400 ml-auto" size={28} />
+            <Clock className="text-indigo-400 ml-auto" size={24} />
           </div>
         </div>
       </div>

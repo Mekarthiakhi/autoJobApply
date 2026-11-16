@@ -1,9 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import Dashboard from './components/Dashboard/Dashboard';
+import AgentsStudio from './components/Agents/AgentsStudio';
 import JobsTable from './components/Jobs/JobsTable';
 import ApplicationsList from './components/Applications/ApplicationsList';
 import Companies from './components/Companies/Companies';
@@ -19,17 +21,30 @@ import Layout from './components/Common/Layout';
 import './styles/globals.css';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-slate-950 text-indigo-400">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
   return isAuthenticated ? (
     <Layout>{children}</Layout>
   ) : (
-    <Navigate to="/login" />
+    <Navigate to="/login" replace />
   );
 };
 
-function App() {
-  const { isAuthenticated } = useAuth();
+const RootRedirect: React.FC = () => {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />;
+};
 
+function AppRoutes() {
   return (
     <Router>
       <Routes>
@@ -41,6 +56,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agents"
+          element={
+            <ProtectedRoute>
+              <AgentsStudio />
             </ProtectedRoute>
           }
         />
@@ -93,18 +116,18 @@ function App() {
           }
         />
         <Route
-          path="/cover-letters"
-          element={
-            <ProtectedRoute>
-              <CoverLetters />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/activity-logs"
           element={
             <ProtectedRoute>
               <ActivityLogs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cover-letters"
+          element={
+            <ProtectedRoute>
+              <CoverLetters />
             </ProtectedRoute>
           }
         />
@@ -133,9 +156,18 @@ function App() {
           }
         />
         
-        <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} />} />
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
 

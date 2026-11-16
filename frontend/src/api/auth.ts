@@ -8,11 +8,26 @@ const client = axios.create({
 
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && token !== 'undefined' && token !== 'null') {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers.Authorization;
   }
   return config;
 });
+
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      const isAuthRequest = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register');
+      if (!isAuthRequest) {
+        localStorage.removeItem('token');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const authAPI = {
   register: (email: string, password: string, fullName: string) =>
@@ -41,10 +56,17 @@ export const applicationsAPI = {
 
 export const dashboardAPI = {
   getDashboard: (params?: any) => client.get('/dashboard', { params }),
-  runAgents: () => client.post('/agents/run'),
+  runAgents: (options?: any) => client.post('/agents/run', options),
 };
 
-// --- New Agent APIs ---
+// --- Multi-Agent Intelligence APIs ---
+export const agentsAPI = {
+  getStatus: () => client.get('/agents/run'),
+  getAgents: () => client.get('/agents/list'),
+  runAgents: (options?: any) => client.post('/agents/run', options),
+  testAsUser: (options?: any) => client.post('/agents/test-as-user', options),
+  createCustomAgent: (data: any) => client.post('/agents/create', data),
+};
 
 export const reviewQueueAPI = {
   getPendingReviews: () => client.get('/review-queue'),

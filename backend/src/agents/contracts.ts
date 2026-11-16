@@ -69,6 +69,8 @@ export interface JobDiscoveryInput {
   targetLocations: string[];
   platforms: string[];
   limitPerPlatform?: number;
+  mode?: 'live' | 'test' | 'simulation';
+  fastTest?: boolean;
 }
 export interface DiscoveredJobRaw {
   title: string;

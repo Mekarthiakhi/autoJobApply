@@ -5,6 +5,7 @@ import { Search, SlidersHorizontal, MapPin, Clock, Home, Building } from 'lucide
 
 export const JobsTable: React.FC = () => {
   const { jobs, loading, fetchJobs, searchJobs } = useJobs();
+  const safeJobs = Array.isArray(jobs) ? jobs : (jobs && Array.isArray((jobs as any).jobs) ? (jobs as any).jobs : []);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export const JobsTable: React.FC = () => {
     return colors[hash % colors.length];
   };
 
-  if (loading && jobs.length === 0) {
+  if (loading && safeJobs.length === 0) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6C63FF]"></div>
@@ -82,7 +83,7 @@ export const JobsTable: React.FC = () => {
         <div className="section-header">
           <div>
             <div className="section-title">Job Matches</div>
-            <div className="section-sub">{jobs.length} new matches found today · Last synced 3 min ago</div>
+            <div className="section-sub">{safeJobs.length} new matches found today · Last synced 3 min ago</div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#12131F', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 14px' }}>
@@ -105,12 +106,12 @@ export const JobsTable: React.FC = () => {
         <div className="stat-strip">
           <div className="stat-cell">
             <div className="stat-label">Jobs Found</div>
-            <div className="stat-val">{jobs.length}</div>
+            <div className="stat-val">{safeJobs.length}</div>
             <div className="stat-delta up">↑ 18 today</div>
           </div>
           <div className="stat-cell">
             <div className="stat-label">AI Matches</div>
-            <div className="stat-val accent">{jobs.filter((j: any) => j.match_score >= 80).length}</div>
+            <div className="stat-val accent">{safeJobs.filter((j: any) => (j.match_score || 0) >= 80).length}</div>
             <div className="stat-delta up">↑ above 80%</div>
           </div>
           <div className="stat-cell">
@@ -127,8 +128,8 @@ export const JobsTable: React.FC = () => {
 
         <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.25)', marginBottom: '12px', padding: '0 4px' }}>Top matches</div>
 
-        {jobs.length > 0 ? (
-          jobs.map((job: any) => {
+        {safeJobs.length > 0 ? (
+          safeJobs.map((job: any) => {
             const logoColor = getLogoColor(job.company_name);
             const score = job.match_score || Math.floor(Math.random() * 20) + 75; // fallback
             

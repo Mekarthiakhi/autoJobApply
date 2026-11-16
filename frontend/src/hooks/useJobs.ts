@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { jobsAPI } from '../api/auth';
 
 export function useJobs() {
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -11,9 +11,12 @@ export function useJobs() {
       setLoading(true);
       setError(null);
       const response = await jobsAPI.getJobs(limit);
-      setJobs(response.data);
+      const raw = response.data;
+      const list = Array.isArray(raw) ? raw : (raw?.jobs && Array.isArray(raw.jobs) ? raw.jobs : []);
+      setJobs(list);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to fetch jobs');
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -24,9 +27,12 @@ export function useJobs() {
       setLoading(true);
       setError(null);
       const response = await jobsAPI.searchJobs(keywords);
-      setJobs(response.data);
+      const raw = response.data;
+      const list = Array.isArray(raw) ? raw : (raw?.jobs && Array.isArray(raw.jobs) ? raw.jobs : []);
+      setJobs(list);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Search failed');
+      setJobs([]);
     } finally {
       setLoading(false);
     }

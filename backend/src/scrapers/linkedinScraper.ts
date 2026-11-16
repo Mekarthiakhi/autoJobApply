@@ -44,8 +44,11 @@ export class LinkedInScraper {
         this.browser = await chromium.connectOverCDP('http://localhost:9222');
         logger.info('✅ Successfully connected to local Chrome via CDP');
       } catch (error) {
-        logger.error('❌ Failed to connect to local Chrome. Did you start it with --remote-debugging-port=9222?', error);
-        throw new Error('Chrome CDP connection failed');
+        logger.info('ℹ️ Chrome CDP (port 9222) not running. Launching standalone Playwright Chromium...');
+        this.browser = await chromium.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        });
       }
     }
     return this.browser;

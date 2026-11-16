@@ -27,11 +27,22 @@ export async function register(req: Request, res: Response) {
     
     const user = await userRepository.create(email, passwordHash, fullName, verificationToken);
 
-    // Send the verification email
+    // Send the verification email (logs mock in development/staging)
     await sendVerificationEmail(user.email, user.full_name, verificationToken);
 
+    const autoVerify = process.env.NODE_ENV !== 'production' || !process.env.RESEND_API_KEY;
+    if (autoVerify) {
+      await userRepository.update(user.id, { is_verified: true, verification_token: null });
+      user.is_verified = true;
+    }
+
+    const token = generateToken({ userId: user.id, email: user.email });
+
     res.status(201).json({
-      message: 'Registration successful. Please check your email to verify your account.',
+      message: autoVerify
+        ? 'Registration successful.'
+        : 'Registration successful. Please check your email to verify your account.',
+      token,
       user: {
         id: user.id,
         email: user.email,
@@ -126,13 +137,19 @@ export async function login(req: Request, res: Response) {
       throw new AppError(401, 'Invalid credentials');
     }
 
-    if (!user.is_verified) {
-      throw new AppError(403, 'Please verify your email before logging in');
-    }
-
     const isValid = await comparePassword(password, user.password_hash);
     if (!isValid) {
       throw new AppError(401, 'Invalid credentials');
+    }
+
+    if (!user.is_verified) {
+      const autoVerify = process.env.NODE_ENV !== 'production' || !process.env.RESEND_API_KEY;
+      if (autoVerify) {
+        await userRepository.update(user.id, { is_verified: true, verification_token: null });
+        user.is_verified = true;
+      } else {
+        throw new AppError(403, 'Please verify your email before logging in');
+      }
     }
 
     const token = generateToken({ userId: user.id, email: user.email });
