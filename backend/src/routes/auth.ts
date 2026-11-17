@@ -21,6 +21,7 @@ router.post('/reset-password', authLimiter, resetPassword);
 router.get('/verify-email', verifyEmail);
 router.post('/login', authLimiter, login);
 router.get('/profile', authMiddleware, getProfile);
+router.get('/me', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile);
 
 export default router;

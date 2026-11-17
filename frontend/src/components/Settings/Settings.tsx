@@ -34,6 +34,8 @@ export const Settings: React.FC = () => {
         }
         if (profile.minMatchScore) setMinMatchScore(profile.minMatchScore);
         if (profile.telegramEnabled !== undefined) setTelegramEnabled(profile.telegramEnabled);
+        if (profile.emailEnabled !== undefined) setEmailEnabled(profile.emailEnabled);
+        if (profile.autoApplyEnabled !== undefined) setAutoApplyEnabled(profile.autoApplyEnabled);
       } catch (error) {
         console.error('Failed to fetch profile', error);
       }
@@ -48,6 +50,9 @@ export const Settings: React.FC = () => {
         preferredLocations,
         minMatchScore,
         employmentType: 'Full-Time',
+        telegramEnabled,
+        emailEnabled,
+        autoApplyEnabled,
       });
       setTimeout(() => setSaving(false), 1000); // Mock success
     } catch (error) {

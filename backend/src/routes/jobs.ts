@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import {
   getJobs,
+  getJobStats,
   getJobDetails,
   searchJobs,
   getExplainableScore,
@@ -12,6 +13,9 @@ import {
 } from '../controllers/jobController.js';
 
 const router = Router();
+
+// Stats (must be before /:jobId)
+router.get('/stats', authMiddleware, getJobStats);
 
 // Saved searches (must be before /:jobId)
 router.post('/saved-searches', authMiddleware, createSavedSearch);

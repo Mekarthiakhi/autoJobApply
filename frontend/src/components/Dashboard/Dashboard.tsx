@@ -330,12 +330,12 @@ export const Dashboard: React.FC = () => {
                 {pendingActions.length} Action(s) Require Candidate Attention
               </strong>
             </div>
-            <a
-              href="#/review-queue"
+            <Link
+              to="/review-queue"
               className="text-xs text-amber-300 hover:text-amber-200 font-medium flex items-center gap-1"
             >
               Open Review Queue <ChevronRight size={14} />
-            </a>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -561,9 +561,9 @@ export const Dashboard: React.FC = () => {
               <h3 className="text-base font-bold text-white">Recent Workflow History</h3>
               <p className="text-xs text-gray-400">Live operational logs across multi-agent pipelines</p>
             </div>
-            <a href="#/activity-logs" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+            <Link to="/activity-logs" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
               View All Logs <ChevronRight size={14} />
-            </a>
+            </Link>
           </div>
 
           <div className="space-y-2.5">

@@ -10,6 +10,25 @@ import { getDatabase } from '../config/database.js';
 const jobRepository = new JobRepository();
 const matchScoreRepository = new MatchScoreRepository();
 
+export async function getJobStats(req: Request, res: Response) {
+  try {
+    const userId = req.userId;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    const db = await getDatabase();
+    const stats = await db.get(
+      `SELECT 
+         COUNT(*) as totalJobs,
+         COUNT(CASE WHEN status = 'shortlisted' THEN 1 END) as shortlistedJobs,
+         COUNT(CASE WHEN status = 'applied' THEN 1 END) as appliedJobs
+       FROM jobs`
+    );
+    res.json(stats || { totalJobs: 0, shortlistedJobs: 0, appliedJobs: 0 });
+  } catch (error) {
+    console.error('Failed to fetch job stats:', error);
+    res.status(500).json({ error: 'Failed to fetch job stats' });
+  }
+}
+
 export async function getJobs(req: Request, res: Response) {
   try {
     const userId = req.userId;

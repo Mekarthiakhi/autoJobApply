@@ -112,8 +112,8 @@ export class WorkflowOrchestrator {
           coverLetterContent = await coverLetterAgent.generateCoverLetter(resumeText, job.job_description, job.title, job.company_name);
           if (coverLetterContent) {
              const result = await db.run(
-               `INSERT INTO cover_letters (content) VALUES (?)`,
-               [coverLetterContent]
+               `INSERT INTO cover_letters (user_id, job_id, content) VALUES (?, ?, ?)`,
+               [userId, job.id, coverLetterContent]
              );
              coverLetterId = result.lastID?.toString() || null;
           }

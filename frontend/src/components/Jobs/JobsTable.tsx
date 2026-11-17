@@ -5,10 +5,18 @@ import { Search, SlidersHorizontal, MapPin, Clock, Home, Building } from 'lucide
 
 export const JobsTable: React.FC = () => {
   const { jobs, loading, fetchJobs, searchJobs } = useJobs();
-  const safeJobs = Array.isArray(jobs) ? jobs : (jobs && Array.isArray((jobs as any).jobs) ? (jobs as any).jobs : []);
+  const rawJobs = Array.isArray(jobs) ? jobs : (jobs && Array.isArray((jobs as any).jobs) ? (jobs as any).jobs : []);
+  const safeJobs = rawJobs.filter((j: any) => {
+    const score = j.match_score || 85;
+    if (minScoreFilter > 0 && score < minScoreFilter) return false;
+    if (activeTab === 'matched' && score < 80) return false;
+    return true;
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
+  const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
+  const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
 
   useEffect(() => {
     fetchJobs();
@@ -96,9 +104,30 @@ export const JobsTable: React.FC = () => {
                 style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: 'white', width: '150px' }}
               />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#12131F', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 14px', cursor: 'pointer' }}>
-              <SlidersHorizontal size={14} color="rgba(255,255,255,0.5)" />
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Filter</span>
+            <div style={{ position: 'relative' }}>
+              <div 
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: showFilterDropdown ? '#1E2238' : '#12131F', border: minScoreFilter > 0 ? '1px solid #6C63FF' : '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 14px', cursor: 'pointer' }}
+              >
+                <SlidersHorizontal size={14} color={minScoreFilter > 0 ? '#6C63FF' : 'rgba(255,255,255,0.5)'} />
+                <span style={{ fontSize: '13px', color: minScoreFilter > 0 ? '#6C63FF' : 'rgba(255,255,255,0.5)', fontWeight: minScoreFilter > 0 ? 600 : 400 }}>
+                  {minScoreFilter > 0 ? `≥ ${minScoreFilter}%` : 'Filter'}
+                </span>
+              </div>
+              {showFilterDropdown && (
+                <div style={{ position: 'absolute', right: 0, top: '44px', background: '#16192B', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', padding: '8px', zIndex: 50, minWidth: '150px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', padding: '4px 8px', fontWeight: 600 }}>MIN MATCH SCORE</div>
+                  {[0, 70, 80, 90].map((score) => (
+                    <div
+                      key={score}
+                      onClick={() => { setMinScoreFilter(score); setShowFilterDropdown(false); }}
+                      style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', color: minScoreFilter === score ? '#6C63FF' : 'white', background: minScoreFilter === score ? 'rgba(108,99,255,0.15)' : 'transparent' }}
+                    >
+                      {score === 0 ? 'All Matches' : `≥ ${score}% Score`}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -131,7 +160,7 @@ export const JobsTable: React.FC = () => {
         {safeJobs.length > 0 ? (
           safeJobs.map((job: any) => {
             const logoColor = getLogoColor(job.company_name);
-            const score = job.match_score || Math.floor(Math.random() * 20) + 75; // fallback
+            const score = job.match_score ?? (80 + (job.company_name.length % 15)); // deterministic fallback
             
             return (
               <div key={job.id} className="job-row">

@@ -4,6 +4,7 @@ import { applicationsAPI } from '../../api/auth';
 export const ApplicationsList: React.FC = () => {
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const fetchApplications = async () => {
     try {
@@ -73,9 +74,34 @@ export const ApplicationsList: React.FC = () => {
           <div className="section-sub">{applications.length} total · {stats.interviews} active · Updated just now</div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <div className="status-pill s-applied" style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px' }}>Applied</div>
-          <div className="status-pill s-interview" style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px' }}>Interviews</div>
-          <div className="status-pill s-rejected" style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px' }}>Rejected</div>
+          <div 
+            onClick={() => setFilterStatus(filterStatus === 'all' ? 'all' : 'all')} 
+            className="status-pill" 
+            style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px', background: filterStatus === 'all' ? '#1E2238' : 'transparent', color: filterStatus === 'all' ? 'white' : 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            All
+          </div>
+          <div 
+            onClick={() => setFilterStatus(filterStatus === 'applied' ? 'all' : 'applied')} 
+            className="status-pill s-applied" 
+            style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px', outline: filterStatus === 'applied' ? '2px solid #6C63FF' : 'none' }}
+          >
+            Applied
+          </div>
+          <div 
+            onClick={() => setFilterStatus(filterStatus === 'interview' ? 'all' : 'interview')} 
+            className="status-pill s-interview" 
+            style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px', outline: filterStatus === 'interview' ? '2px solid #FBBF24' : 'none' }}
+          >
+            Interviews
+          </div>
+          <div 
+            onClick={() => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected')} 
+            className="status-pill s-rejected" 
+            style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: '8px', outline: filterStatus === 'rejected' ? '2px solid #F87171' : 'none' }}
+          >
+            Rejected
+          </div>
         </div>
       </div>
       
@@ -88,8 +114,8 @@ export const ApplicationsList: React.FC = () => {
 
       <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.25)', marginBottom: '12px', padding: '0 4px' }}>Recent Applications</div>
 
-      {applications.length > 0 ? (
-        applications.map((app: any) => {
+      {applications.filter((a: any) => filterStatus === 'all' || a.status === filterStatus || (filterStatus === 'applied' && a.status === 'pending')).length > 0 ? (
+        applications.filter((a: any) => filterStatus === 'all' || a.status === filterStatus || (filterStatus === 'applied' && a.status === 'pending')).map((app: any) => {
           const logoColor = getLogoColor(app.company_name);
           return (
             <div key={app.id} className="job-row" style={{ opacity: app.status === 'rejected' ? 0.55 : 1 }}>
