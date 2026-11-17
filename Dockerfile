@@ -8,7 +8,7 @@ FROM node:20-bookworm-slim AS frontend-builder
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY frontend/ ./
 ARG VITE_API_URL=/api
@@ -20,7 +20,7 @@ FROM node:20-bookworm-slim AS backend-builder
 WORKDIR /app/backend
 
 COPY backend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY backend/ ./
 RUN npx tsc
@@ -47,7 +47,7 @@ RUN groupadd -g 1001 appuser && \
 
 # Copy backend dependencies
 COPY backend/package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev --no-audit && npm cache clean --force
 
 # Install Playwright Chromium with exact OS libraries
 RUN npx playwright install --with-deps chromium
