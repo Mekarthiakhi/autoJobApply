@@ -34,10 +34,14 @@ ENV PORT=5000
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV DB_PATH=/app/data/jobs.db
 
-# Install system dependencies for Playwright Chromium, wget, and certificates
+# Install system dependencies for Playwright Chromium, native compilation tools (sqlite3), wget, and certificates
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     ca-certificates \
+    python3 \
+    make \
+    g++ \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root application user and required runtime folders
@@ -45,9 +49,11 @@ RUN groupadd -g 1001 appuser && \
     useradd -u 1001 -g appuser -s /bin/bash -m appuser && \
     mkdir -p /app/data /app/backups /app/screenshots /app/exports /app/public /ms-playwright
 
-# Copy backend dependencies
+# Copy backend dependencies and rebuild native sqlite3 addon from source for exact GLIBC match
 COPY backend/package*.json ./
-RUN npm install --omit=dev --no-audit && npm cache clean --force
+RUN npm install --omit=dev --no-audit && \
+    npm rebuild sqlite3 --build-from-source && \
+    npm cache clean --force
 
 # Install Playwright Chromium with exact OS libraries
 RUN npx playwright install --with-deps chromium
