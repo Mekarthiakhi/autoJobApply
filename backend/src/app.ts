@@ -163,12 +163,12 @@ async function startServer() {
 
   await initializeDatabase();
 
-  // If brand-new database with 0 users, auto-seed Akhilesh Mekarthi's candidate profile & demo applications
+  // If brand-new database or jobs table is empty, auto-seed Akhilesh Mekarthi's candidate profile & demo applications
   try {
     const sql = await getDatabase();
-    const userRow = await sql.get<{ count: number }>('SELECT count(*) as count FROM users');
-    if (!userRow || userRow.count === 0) {
-      logger.info('🌱 Fresh database detected (0 users). Auto-seeding initial candidate profile and jobs...');
+    const jobRow = await sql.get<{ count: number }>('SELECT count(*) as count FROM jobs');
+    if (!jobRow || jobRow.count === 0) {
+      logger.info('🌱 Database has 0 jobs. Auto-seeding initial candidate profile, target jobs, and review queue...');
       const { seedAkhileshCandidate } = await import('./scripts/processAkhileshPipeline.js');
       await seedAkhileshCandidate();
     }
