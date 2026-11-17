@@ -13,9 +13,9 @@ export class GeminiProvider implements AIProvider {
   readonly name: ProviderName = 'gemini';
 
   private readonly modelMap: Record<ModelTier, string> = {
-    fast: process.env.GEMINI_MODEL_FAST || 'gemini-1.5-flash',
-    quality: process.env.GEMINI_MODEL_QUALITY || 'gemini-1.5-pro',
-    reasoning: process.env.GEMINI_MODEL_REASONING || 'gemini-2.0-flash',
+    fast: process.env.GEMINI_MODEL_FAST || 'gemini-3.5-flash-lite',
+    quality: process.env.GEMINI_MODEL_QUALITY || 'gemini-3.5-flash-lite',
+    reasoning: process.env.GEMINI_MODEL_REASONING || 'gemini-3.5-flash-lite',
   };
 
   isAvailable(): boolean {

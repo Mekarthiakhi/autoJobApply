@@ -7,6 +7,7 @@ export interface CandidateBasics {
   githubUrl?: string;
   portfolioUrl?: string;
   summary?: string;
+  title?: string;
 }
 
 export interface CategorizedSkills {

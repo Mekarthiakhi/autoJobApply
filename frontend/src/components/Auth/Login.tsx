@@ -33,6 +33,14 @@ export const Login: React.FC = () => {
     }
   };
 
+  const handleAkhileshSignIn = async () => {
+    clearError();
+    const success = await login('akhileshmekarthi28@gmail.com', 'TestPassword123!');
+    if (success) {
+      navigate('/dashboard', { replace: true });
+    }
+  };
+
   return (
     <div className="auth-container fade-in">
       <div className="auth-form glass" style={{ maxWidth: '440px', padding: '28px 32px' }}>
@@ -96,6 +104,30 @@ export const Login: React.FC = () => {
           >
             <span>Sign In as Verified Test User</span>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>(1-Click)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleAkhileshSignIn}
+            disabled={loading}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '7px',
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.25) 100%)',
+              border: '1px solid rgba(52, 211, 153, 0.4)',
+              color: '#d1fae5',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span>👤 Sign In as Akhilesh Mekarthi</span>
+            <span style={{ fontSize: '11px', color: '#6ee7b7' }}>(Live Candidate)</span>
           </button>
         </div>
 
