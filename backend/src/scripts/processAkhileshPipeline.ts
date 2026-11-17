@@ -93,7 +93,7 @@ export const akhileshResumeData: StructuredResume = {
   certifications: [],
 };
 
-async function runPipeline() {
+export async function seedAkhileshCandidate() {
   console.log('===============================================================');
   console.log('🚀 PROCESSING AKHILESH MEKARTHI RESUME & LIVE AGENT PIPELINE');
   console.log('===============================================================\n');
@@ -420,7 +420,14 @@ ${akhileshResumeData.education.map(e => `${e.degree} from ${e.institution} (${e.
   console.log('===============================================================\n');
 }
 
-runPipeline().catch(err => {
-  console.error('Pipeline error:', err);
-  process.exit(1);
-});
+const isMain = process.argv[1] && (
+  process.argv[1].endsWith('processAkhileshPipeline.js') || 
+  process.argv[1].endsWith('processAkhileshPipeline.ts')
+);
+
+if (isMain) {
+  seedAkhileshCandidate().catch(err => {
+    console.error('Pipeline error:', err);
+    process.exit(1);
+  });
+}

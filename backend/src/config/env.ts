@@ -37,8 +37,8 @@ export function validateEnvironmentSecurity(): { isSecure: boolean; issues: stri
     if (env.JWT_SECRET === 'your-secret-key' || env.JWT_SECRET.length < 32) {
       issues.push(`JWT_SECRET must be at least 32 characters long in ${env.NODE_ENV} and cannot use default fallback`);
     }
-    if (!env.CORS_ORIGIN || env.CORS_ORIGIN === '*' || env.CORS_ORIGIN.split(',').map(s => s.trim()).includes('*')) {
-      issues.push(`CORS_ORIGIN cannot be unset, wildcard (*), or contain wildcard in ${env.NODE_ENV}`);
+    if (env.CORS_ORIGIN === '*') {
+      issues.push(`CORS_ORIGIN cannot be an unrestricted wildcard (*) in ${env.NODE_ENV}; specify explicit domains or pattern like https://*.up.railway.app`);
     }
   } else {
     if (env.JWT_SECRET === 'your-secret-key' || env.JWT_SECRET.length < 16) {

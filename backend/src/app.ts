@@ -2,7 +2,13 @@ import 'dotenv/config';
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { env, validateEnvironmentSecurity } from './config/env.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { initializeDatabase, closeDatabase, getDatabase, isDatabaseAvailable } from './config/database.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -32,21 +38,30 @@ app.use(helmet());
 // Security: Controlled CORS policy
 const isStrictEnv = env.NODE_ENV === 'production' || env.NODE_ENV === 'staging';
 const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
-  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://localhost:5000'];
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl, or same-origin server-to-server)
     if (!origin) {
       return callback(null, true);
     }
     if (!isStrictEnv && allowedOrigins.includes('*')) {
       return callback(null, true);
     }
-    if (allowedOrigins.includes(origin)) {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed === origin) return true;
+      if (allowed.includes('*')) {
+        const regex = new RegExp('^' + allowed.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+        return regex.test(origin);
+      }
+      return false;
+    });
+    if (isAllowed) {
       return callback(null, true);
     }
-    return callback(new Error('Blocked by CORS policy'));
+    return callback(new Error(`Blocked by CORS policy: origin ${origin} is not allowed`));
   },
   credentials: true,
 }));
@@ -104,6 +119,27 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
+// Serve static frontend in production if built dist exists
+const possibleDistPaths = [
+  path.resolve(process.cwd(), 'public'),
+  path.resolve(process.cwd(), '../frontend/dist'),
+  path.resolve(__dirname, '../../frontend/dist'),
+  path.resolve(__dirname, '../public'),
+  path.resolve(__dirname, 'public'),
+];
+const staticDir = possibleDistPaths.find(p => fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html')));
+
+if (staticDir) {
+  logger.info(`📦 Serving static frontend from ${staticDir}`);
+  app.use(express.static(staticDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(staticDir, 'index.html'));
+  });
+}
+
 // Error handler
 app.use(errorHandler);
 
@@ -123,6 +159,19 @@ async function startServer() {
   }
 
   await initializeDatabase();
+
+  // If brand-new database with 0 users, auto-seed Akhilesh Mekarthi's candidate profile & demo applications
+  try {
+    const sql = await getDatabase();
+    const userRow = await sql.get<{ count: number }>('SELECT count(*) as count FROM users');
+    if (!userRow || userRow.count === 0) {
+      logger.info('🌱 Fresh database detected (0 users). Auto-seeding initial candidate profile and jobs...');
+      const { seedAkhileshCandidate } = await import('./scripts/processAkhileshPipeline.js');
+      await seedAkhileshCandidate();
+    }
+  } catch (seedErr) {
+    logger.warn('Initial seeding skipped or encountered non-fatal error:', seedErr);
+  }
 
   // Conditionally initialize background cron jobs
   if (process.env.ENABLE_SCHEDULED_JOBS === 'true') {
