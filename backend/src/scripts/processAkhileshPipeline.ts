@@ -168,7 +168,9 @@ ${akhileshResumeData.education.map(e => `${e.degree} from ${e.institution} (${e.
   console.log('📄 Generating baseline PDF in original format using Playwright...');
   const baselinePdfBuffer = await pdfExporter.exportToPDF(akhileshResumeData);
   fs.writeFileSync(baselinePdfPath, baselinePdfBuffer);
-  fs.writeFileSync(path.join(artifactDir, 'Akhilesh_Mekarthi_Resume.pdf'), baselinePdfBuffer);
+  if (fs.existsSync(artifactDir)) {
+    fs.writeFileSync(path.join(artifactDir, 'Akhilesh_Mekarthi_Resume.pdf'), baselinePdfBuffer);
+  }
   console.log(`✅ Baseline resume PDF exported: ${baselinePdfPath}`);
 
   await db.run(
@@ -328,7 +330,9 @@ ${akhileshResumeData.education.map(e => `${e.degree} from ${e.institution} (${e.
     const tailoredPdfPath = path.join(exportsDir, tailoredPdfFileName);
     const tailoredPdfBuffer = await pdfExporter.exportToPDF(tailoredDraft.fullStructuredData);
     fs.writeFileSync(tailoredPdfPath, tailoredPdfBuffer);
-    fs.writeFileSync(path.join(artifactDir, tailoredPdfFileName), tailoredPdfBuffer);
+    if (fs.existsSync(artifactDir)) {
+      fs.writeFileSync(path.join(artifactDir, tailoredPdfFileName), tailoredPdfBuffer);
+    }
     console.log(`     Exported tailored PDF: ${tailoredPdfFileName}`);
 
     // Persist tailored version in resume_versions

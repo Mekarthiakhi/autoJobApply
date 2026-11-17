@@ -32,6 +32,9 @@ import { logger } from './utils/logger.js';
 
 const app: Express = express();
 
+// Trust Railway and edge reverse proxies for accurate client IP rate limiting
+app.set('trust proxy', 1);
+
 // Security: Helmet for HTTP response security headers
 app.use(helmet());
 
