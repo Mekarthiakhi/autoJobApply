@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: autojobapply-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DB_PATH
+        value: /app/data/jobs.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://autojobapply-frontend.onrender.com
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ENABLE_SCHEDULED_JOBS
+        value: "false"
+    disk:
+      name: autojobapply-data
+      mountPath: /app/data
+      sizeGB: 1
+
+  - type: web
+    name: autojobapply-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://autojobapply-backend.onrender.com/api
