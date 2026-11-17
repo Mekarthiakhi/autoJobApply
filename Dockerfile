@@ -44,10 +44,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root application user and required runtime folders
-RUN groupadd -g 1001 appuser && \
-    useradd -u 1001 -g appuser -s /bin/bash -m appuser && \
-    mkdir -p /app/data /app/backups /app/screenshots /app/exports /app/public /ms-playwright
+# Create required runtime folders for database persistence and agent exports
+RUN mkdir -p /app/data /app/backups /app/screenshots /app/exports /app/public /ms-playwright
 
 # Copy backend dependencies and rebuild native sqlite3 addon from source for exact GLIBC match
 COPY backend/package*.json ./
@@ -63,12 +61,6 @@ COPY --from=backend-builder /app/backend/dist ./dist
 
 # Copy compiled frontend static assets for unified zero-CORS serving
 COPY --from=frontend-builder /app/frontend/dist ./public
-
-# Set non-root permissions
-RUN chown -R appuser:appuser /app /ms-playwright && \
-    chmod -R 755 /ms-playwright
-
-USER appuser
 
 EXPOSE 5000
 
