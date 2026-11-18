@@ -265,6 +265,7 @@ export async function getProfile(req: Request, res: Response) {
     const db = await getDatabase();
     const settings = await db.get(
       `SELECT telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled,
+              auto_apply_interval_hours, last_auto_apply_run_at,
               whatsapp_enabled, whatsapp_phone, whatsapp_api_key,
               imap_enabled, imap_email, imap_password, imap_host
        FROM automation_settings WHERE user_id = ?`,
@@ -295,6 +296,12 @@ export async function getProfile(req: Request, res: Response) {
       }
     }
 
+    const intervalHours = Math.min(5, Math.max(1, Number(settings?.auto_apply_interval_hours) || 1));
+    const lastRunAt = settings?.last_auto_apply_run_at || null;
+    const nextRunAt = lastRunAt
+      ? new Date(new Date(lastRunAt + (lastRunAt.endsWith('Z') ? '' : 'Z')).getTime() + intervalHours * 3600000).toISOString()
+      : null;
+
     res.json({
       id: user.id,
       email: user.email,
@@ -307,6 +314,9 @@ export async function getProfile(req: Request, res: Response) {
       telegramChatId: settings?.telegram_chat_id || '',
       emailEnabled: settings ? settings.email_notifications === 1 : true,
       autoApplyEnabled: settings ? settings.auto_apply_enabled !== 0 : true,
+      autoApplyIntervalHours: intervalHours,
+      lastAutoApplyRunAt: lastRunAt,
+      nextAutoApplyRunAt: nextRunAt,
       whatsappEnabled: settings?.whatsapp_enabled === 1,
       whatsappPhone,
       whatsappApiKey: settings?.whatsapp_api_key || '',
@@ -339,6 +349,7 @@ export async function updateProfile(req: Request, res: Response) {
       telegramChatId,
       emailEnabled,
       autoApplyEnabled,
+      autoApplyIntervalHours,
       whatsappEnabled,
       whatsappPhone,
       whatsappApiKey,
@@ -361,14 +372,16 @@ export async function updateProfile(req: Request, res: Response) {
     } as any);
 
     const db = await getDatabase();
-    const existingSettings = await db.get<{ imap_password: string | null }>(
-      `SELECT imap_password FROM automation_settings WHERE user_id = ?`,
+    const existingSettings = await db.get<{ imap_password: string | null; last_auto_apply_run_at: string | null }>(
+      `SELECT imap_password, last_auto_apply_run_at FROM automation_settings WHERE user_id = ?`,
       [userId]
     );
 
     const tEnabled = telegramEnabled ? 1 : 0;
     const eEnabled = emailEnabled === false ? 0 : 1;
     const aEnabled = autoApplyEnabled === false ? 0 : 1;
+    const intervalHours = Math.min(5, Math.max(1, Math.round(Number(autoApplyIntervalHours) || 1)));
+    const freqLabel = intervalHours === 1 ? 'hourly' : `every_${intervalHours}h`;
     const wEnabled = whatsappEnabled ? 1 : 0;
     const iEnabled = imapEnabled ? 1 : 0;
     const cleanPhone = normalizePhoneNumber(whatsappPhone || '');
@@ -380,15 +393,18 @@ export async function updateProfile(req: Request, res: Response) {
     await db.run(
       `INSERT INTO automation_settings (
          user_id, telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled,
+         auto_apply_interval_hours, job_search_frequency,
          whatsapp_enabled, whatsapp_phone, whatsapp_api_key,
          imap_enabled, imap_email, imap_password, imap_host
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (user_id) DO UPDATE SET
          telegram_enabled = excluded.telegram_enabled,
          telegram_chat_id = excluded.telegram_chat_id,
          email_notifications = excluded.email_notifications,
          auto_apply_enabled = excluded.auto_apply_enabled,
+         auto_apply_interval_hours = excluded.auto_apply_interval_hours,
+         job_search_frequency = excluded.job_search_frequency,
          whatsapp_enabled = excluded.whatsapp_enabled,
          whatsapp_phone = excluded.whatsapp_phone,
          whatsapp_api_key = excluded.whatsapp_api_key,
@@ -403,6 +419,8 @@ export async function updateProfile(req: Request, res: Response) {
         telegramChatId || '',
         eEnabled,
         aEnabled,
+        intervalHours,
+        freqLabel,
         wEnabled,
         cleanPhone,
         (whatsappApiKey || '').trim(),
@@ -412,6 +430,11 @@ export async function updateProfile(req: Request, res: Response) {
         (imapHost || 'imap.gmail.com').trim(),
       ]
     );
+
+    const lastRunAt = existingSettings?.last_auto_apply_run_at || null;
+    const nextRunAt = lastRunAt
+      ? new Date(new Date(lastRunAt + (lastRunAt.endsWith('Z') ? '' : 'Z')).getTime() + intervalHours * 3600000).toISOString()
+      : null;
 
     res.json({
       id: user.id,
@@ -424,6 +447,9 @@ export async function updateProfile(req: Request, res: Response) {
       telegramChatId: telegramChatId || '',
       emailEnabled: Boolean(eEnabled),
       autoApplyEnabled: Boolean(aEnabled),
+      autoApplyIntervalHours: intervalHours,
+      lastAutoApplyRunAt: lastRunAt,
+      nextAutoApplyRunAt: nextRunAt,
       whatsappEnabled: Boolean(wEnabled),
       whatsappPhone: cleanPhone,
       whatsappApiKey: (whatsappApiKey || '').trim(),

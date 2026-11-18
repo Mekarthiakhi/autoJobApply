@@ -299,6 +299,8 @@ export async function initializeDatabase() {
     `ALTER TABLE automation_settings ADD COLUMN imap_email VARCHAR(255)`,
     `ALTER TABLE automation_settings ADD COLUMN imap_password VARCHAR(255)`,
     `ALTER TABLE automation_settings ADD COLUMN imap_host VARCHAR(255) DEFAULT 'imap.gmail.com'`,
+    `ALTER TABLE automation_settings ADD COLUMN auto_apply_interval_hours INTEGER DEFAULT 1`,
+    `ALTER TABLE automation_settings ADD COLUMN last_auto_apply_run_at DATETIME`,
   ];
   for (const stmt of alterStatements) {
     try { await sql.exec(stmt); } catch { /* column already exists */ }

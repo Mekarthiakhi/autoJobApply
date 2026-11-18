@@ -13,6 +13,9 @@ export const Settings: React.FC = () => {
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [autoApplyEnabled, setAutoApplyEnabled] = useState(true);
+  const [autoApplyIntervalHours, setAutoApplyIntervalHours] = useState<number>(1);
+  const [lastAutoApplyRunAt, setLastAutoApplyRunAt] = useState<string | null>(null);
+  const [nextAutoApplyRunAt, setNextAutoApplyRunAt] = useState<string | null>(null);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [whatsappApiKey, setWhatsappApiKey] = useState('');
@@ -53,6 +56,9 @@ export const Settings: React.FC = () => {
         if (profile.telegramEnabled !== undefined) setTelegramEnabled(Boolean(profile.telegramEnabled));
         if (profile.emailEnabled !== undefined) setEmailEnabled(Boolean(profile.emailEnabled));
         if (profile.autoApplyEnabled !== undefined) setAutoApplyEnabled(Boolean(profile.autoApplyEnabled));
+        if (typeof profile.autoApplyIntervalHours === 'number') setAutoApplyIntervalHours(profile.autoApplyIntervalHours);
+        if (profile.lastAutoApplyRunAt) setLastAutoApplyRunAt(profile.lastAutoApplyRunAt);
+        if (profile.nextAutoApplyRunAt) setNextAutoApplyRunAt(profile.nextAutoApplyRunAt);
         if (profile.whatsappEnabled !== undefined) setWhatsappEnabled(Boolean(profile.whatsappEnabled));
         if (profile.whatsappPhone) setWhatsappPhone(profile.whatsappPhone);
         if (profile.whatsappApiKey) setWhatsappApiKey(profile.whatsappApiKey);
@@ -72,13 +78,14 @@ export const Settings: React.FC = () => {
     try {
       setSaving(true);
       setSaveMessage(null);
-      await authAPI.updateProfile({
+      const saveRes = await authAPI.updateProfile({
         preferredLocations,
         minMatchScore,
         employmentType: 'Full-Time',
         telegramEnabled,
         emailEnabled,
         autoApplyEnabled,
+        autoApplyIntervalHours,
         whatsappEnabled,
         whatsappPhone,
         whatsappApiKey,
@@ -87,6 +94,7 @@ export const Settings: React.FC = () => {
         imapPassword: imapPassword || undefined,
         imapHost,
       });
+      if (saveRes.data?.nextAutoApplyRunAt) setNextAutoApplyRunAt(saveRes.data.nextAutoApplyRunAt);
       if (imapPassword) {
         setImapPasswordConfigured(true);
         setImapPassword('');
@@ -265,15 +273,48 @@ export const Settings: React.FC = () => {
             </div>
           </div>
           
-          <div className="toggle-row">
+          <div className="toggle-row" style={{ borderBottom: autoApplyEnabled ? 'none' : undefined }}>
             <div className="toggle-info">
-              <div className="toggle-name">Hourly Auto-Apply (Default ON)</div>
-              <div className="toggle-desc">Runs every 1 hour · discovers Remote-first roles, tailors resume &amp; verifies external submission</div>
+              <div className="toggle-name">Scheduled Auto-Apply Cron (Default ON)</div>
+              <div className="toggle-desc">
+                Runs automatically every {autoApplyIntervalHours} {autoApplyIntervalHours === 1 ? 'hour' : 'hours'} · discovers Remote-first roles, tailors resume &amp; verifies external submission
+              </div>
             </div>
             <div className={`toggle ${autoApplyEnabled ? 'on' : ''}`} onClick={() => setAutoApplyEnabled(!autoApplyEnabled)}>
               <div className="toggle-dot"></div>
             </div>
           </div>
+
+          {autoApplyEnabled && (
+            <div style={{ marginTop: '10px', marginBottom: '12px', padding: '12px', borderRadius: '10px', background: 'rgba(108,99,255,0.08)', border: '1px solid rgba(108,99,255,0.28)' }}>
+              <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: '10px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#e2e8f0' }}>
+                  Apply Frequency Gap (Cron Job)
+                </span>
+                <code style={{ fontSize: '11px', color: '#a5b4fc', background: 'rgba(13,14,26,0.65)', padding: '2px 8px', borderRadius: '6px' }}>
+                  {autoApplyIntervalHours === 1 ? '0 * * * *' : `0 */${autoApplyIntervalHours} * * *`}
+                </code>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[1, 2, 3, 4, 5].map((hrs) => (
+                  <button
+                    key={hrs}
+                    type="button"
+                    onClick={() => setAutoApplyIntervalHours(hrs)}
+                    className={autoApplyIntervalHours === hrs ? 'neumo-btn-primary' : 'neumo-btn'}
+                    style={{ padding: '6px 14px', fontSize: '12px' }}
+                  >
+                    Every {hrs} {hrs === 1 ? 'hr' : 'hrs'}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '8px' }}>
+                {lastAutoApplyRunAt
+                  ? `Last cron run: ${new Date(lastAutoApplyRunAt.endsWith('Z') ? lastAutoApplyRunAt : lastAutoApplyRunAt + 'Z').toLocaleString()}${nextAutoApplyRunAt ? ` · Next due: ${new Date(nextAutoApplyRunAt).toLocaleString()}` : ''}`
+                  : `Active cron schedule: runs automatically every ${autoApplyIntervalHours} ${autoApplyIntervalHours === 1 ? 'hour' : 'hours'} once saved.`}
+              </div>
+            </div>
+          )}
 
           <div className="toggle-row" style={{ borderBottom: whatsappEnabled ? 'none' : undefined }}>
             <div className="toggle-info">

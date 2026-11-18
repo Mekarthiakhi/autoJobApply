@@ -9,7 +9,8 @@ Unlike basic trackers that only log jobs locally, AutoApply AI **verifies every 
 - **10 Live Job Portals (Direct Company ATS First):**
   - **Direct Company ATS Boards:** Greenhouse, Ashby, and Lever public company boards (Vercel, GitLab, Netlify, Cloudflare, Linear, Supabase, PostHog, Resend, Algolia, Twilio, Spotify, etc.) — direct company forms with zero aggregator wrappers.
   - **Global Remote & Regional Portals:** Himalayas, Remotive, RemoteOK, Jobicy, Arbeitnow, plus optional **JSearch (LinkedIn/Indeed/Glassdoor)**, **Jooble**, and **Adzuna** via API keys.
-- **Multi-Agent AI Pipeline (Runs Automatically Every 1 Hour):**
+- **Multi-Agent AI Pipeline (Customizable 1–5 Hour Cron Job per User):**
+  - Every user can pick their own **1 hr, 2 hrs, 3 hrs, 4 hrs, or 5 hrs** auto-apply cron interval right in **Settings** (`0 * * * *` through `0 */5 * * *`).
   - Parses each user's uploaded PDF/DOCX resume (auto-extracting skills, keywords, and WhatsApp mobile number).
   - Ranks Remote-first engineering roles using Gemini AI.
   - Generates a **job-tailored resume version** + **personalized Gemini cover letter** for every match.
