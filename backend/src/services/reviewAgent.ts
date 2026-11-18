@@ -289,8 +289,9 @@ export class ReviewAgent {
     await db.run(
       `UPDATE applications SET 
         review_status = 'approved',
-        stage_status = '${ApplicationStage.APPROVED}',
-        status = 'applying',
+        stage_status = '${ApplicationStage.SUBMITTED}',
+        status = 'applied',
+        applied_at = CURRENT_TIMESTAMP,
         candidate_verified = 1,
         approved_draft_hash = ?,
         approval_expires_at = ?,

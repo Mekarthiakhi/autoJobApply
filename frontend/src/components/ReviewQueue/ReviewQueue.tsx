@@ -39,6 +39,7 @@ interface ReviewItem {
   stage_status?: string;
   candidate_verified?: boolean | number;
   cover_letter?: string;
+  cover_letter_content?: string;
   warnings?: string[];
   scraped_questions?: string[];
   application_answers?: ApplicationAnswerItem[];
@@ -315,11 +316,11 @@ const ReviewQueue: React.FC = () => {
                     </div>
 
                     {/* Cover Letter Preview if present */}
-                    {review.cover_letter && (
+                    {(review.cover_letter_content || review.cover_letter) && (
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-200 mb-2">Tailored Cover Letter Draft</h4>
-                        <div className="p-4 rounded-lg bg-gray-950/80 border border-gray-800 text-xs text-gray-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
-                          {review.cover_letter}
+                        <h4 className="text-sm font-semibold text-gray-200 mb-2">Tailored Gemini AI Cover Letter Draft</h4>
+                        <div className="p-4 rounded-lg bg-gray-950/80 border border-gray-800 text-xs text-gray-300 font-mono whitespace-pre-wrap max-h-56 overflow-y-auto">
+                          {review.cover_letter_content || review.cover_letter}
                         </div>
                       </div>
                     )}

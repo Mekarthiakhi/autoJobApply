@@ -131,7 +131,7 @@ export const Dashboard: React.FC = () => {
     try {
       setRunningAgents(true);
       toast.info('Running multi-agent pipeline (Discovery → Ranking → Cover Letters → Review Queue)...');
-      const response = await dashboardAPI.runAgents({ sync: true, limitJobs: 5 });
+      const response = await dashboardAPI.runAgents({ sync: true, limitJobs: 10 });
       const s = response.data?.summary;
       toast.success(
         s

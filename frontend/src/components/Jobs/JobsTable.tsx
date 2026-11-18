@@ -40,6 +40,8 @@ function getSourceBadgeStyle(source?: string): { bg: string; color: string; labe
     indeed: { bg: 'rgba(99,102,241,0.18)', color: '#a5b4fc', label: 'Indeed' },
     glassdoor: { bg: 'rgba(34,197,94,0.16)', color: '#86efac', label: 'Glassdoor' },
     naukri: { bg: 'rgba(249,115,22,0.16)', color: '#fdba74', label: 'Naukri' },
+    shine: { bg: 'rgba(168,85,247,0.16)', color: '#d8b4fe', label: 'Shine' },
+    jsearch: { bg: 'rgba(56,189,248,0.16)', color: '#7dd3fc', label: 'JSearch' },
     adzuna: { bg: 'rgba(20,184,166,0.16)', color: '#5eead4', label: 'Adzuna' },
     jooble: { bg: 'rgba(236,72,153,0.16)', color: '#f9a8d4', label: 'Jooble' },
   };

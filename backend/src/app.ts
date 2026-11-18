@@ -205,9 +205,13 @@ async function startServer() {
           logger.info('🧹 Removed pre-seeded demo account akhileshmekarthi28@gmail.com for clean registration');
         }
       }
-      // Also clean up static demo-seeded & .example placeholder jobs when demo seeding is disabled
+      // Also clean up static demo-seeded, .example placeholder jobs, and non-engineering roles fetched prior to title filtering
       await sql.run(
-        `DELETE FROM jobs WHERE id IN ('job-react-senior-apex', 'job-react-frontend-techcorp', 'job-ui-react-fintech') OR apply_url LIKE '%.example%'`
+        `DELETE FROM jobs WHERE id IN ('job-react-senior-apex', 'job-react-frontend-techcorp', 'job-ui-react-fintech')
+         OR apply_url LIKE '%.example%'
+         OR LOWER(title) LIKE '%content creator%'
+         OR LOWER(title) LIKE '%office assistant%'
+         OR LOWER(title) LIKE '%customer service%'`
       );
       // Sync any uploaded base resumes into resume_versions if missing so users immediately see their uploads
       const orphanResumes = await sql.all<any[]>(

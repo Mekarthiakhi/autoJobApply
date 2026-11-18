@@ -57,6 +57,18 @@ function matchesSearchTerms(text: string, terms: string[]): boolean {
   return terms.some((t) => t.length >= 2 && lower.includes(t.toLowerCase()));
 }
 
+const RELEVANT_TITLE_REGEX =
+  /\b(full[\s-]?stack|front[\s-]?end|back[\s-]?end|software\s+(engineer|developer|architect)|react(\.?js)?|javascript|typescript|node(\.?js)?|next(\.?js)?|web\s+(developer|engineer)|ui\s+(developer|engineer)|ux\s+engineer|angular|vue(\.?js)?|sde|mern|mean|programmer|application\s+developer)\b/i;
+
+const EXCLUDED_TITLE_REGEX =
+  /\b(content\s+creator|youtube|office\s+assistant|customer\s+service|customer\s+support|sales|marketing|recruiter|talent\s+acquisition|accountant|accounting|bookkeeper|nurse|driver|hr\b|human\s+resources|data\s+entry|copywriter|video\s+editor|social\s+media|executive\s+assistant|virtual\s+assistant|call\s+center|mechanical|civil\s+engineer|electrical\s+engineer|chemical\s+engineer|rails\s+only)\b/i;
+
+export function isRelevantEngineeringTitle(title: string): boolean {
+  if (!title) return false;
+  if (EXCLUDED_TITLE_REGEX.test(title)) return false;
+  return RELEVANT_TITLE_REGEX.test(title);
+}
+
 export class MultiPortalAggregator {
   getPortalStatuses(): PortalStatus[] {
     return [
@@ -96,55 +108,78 @@ export class MultiPortalAggregator {
     jobs: DiscoveredJobRecord[];
     byPortal: Record<string, number>;
   }> {
-    const role = query.role || 'React Developer';
-    const location = query.locations?.[0] || 'Remote';
+    const role = query.role || 'Frontend Developer';
+    const location = query.locations?.[0] || 'Hyderabad';
     const limit = Math.min(query.limitPerPortal || 6, 15);
 
     const searchTerms = Array.from(
       new Set([
-        ...role.split(/[\s,/()-]+/).filter((w) => w.length >= 3 && !['the', 'and', 'for', 'developer', 'engineer'].includes(w.toLowerCase())),
-        ...(query.keywords || []).slice(0, 5),
+        'react',
+        'frontend',
+        'front-end',
+        'full stack',
+        'fullstack',
+        'software engineer',
+        'javascript',
+        'typescript',
+        ...role.split(/[\s,/()-]+/).filter((w) => w.length >= 3),
+        ...(query.keywords || []).slice(0, 6),
       ])
     );
-    if (searchTerms.length === 0) searchTerms.push('react', 'frontend', 'javascript');
-    const primaryKeyword = searchTerms[0];
 
-    const tasks: Array<{ name: string; promise: Promise<DiscoveredJobRecord[]> }> = [
-      { name: 'remotive', promise: this.fetchRemotive(primaryKeyword, limit) },
-      { name: 'remoteok', promise: this.fetchRemoteOK(searchTerms, limit) },
-      { name: 'jobicy', promise: this.fetchJobicy(primaryKeyword, limit) },
-      { name: 'arbeitnow', promise: this.fetchArbeitnow(searchTerms, limit) },
-      { name: 'himalayas', promise: this.fetchHimalayas(searchTerms, limit) },
-    ];
-
+    // Order prioritizes JSearch (LinkedIn/Indeed/Shine/Naukri India) & Jooble first, then all 5 global tech portals
+    const tasks: Array<{ name: string; promise: Promise<DiscoveredJobRecord[]> }> = [];
     if (process.env.RAPIDAPI_KEY) {
       tasks.push({ name: 'jsearch', promise: this.fetchJSearch(role, location, limit) });
-    }
-    if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY) {
-      tasks.push({ name: 'adzuna', promise: this.fetchAdzuna(role, location, limit) });
     }
     if (process.env.JOOBLE_API_KEY) {
       tasks.push({ name: 'jooble', promise: this.fetchJooble(role, location, limit) });
     }
+    if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY) {
+      tasks.push({ name: 'adzuna', promise: this.fetchAdzuna(role, location, limit) });
+    }
+    tasks.push(
+      { name: 'remotive', promise: this.fetchRemotive(searchTerms, limit) },
+      { name: 'remoteok', promise: this.fetchRemoteOK(searchTerms, limit) },
+      { name: 'jobicy', promise: this.fetchJobicy('react', limit) },
+      { name: 'arbeitnow', promise: this.fetchArbeitnow(searchTerms, limit) },
+      { name: 'himalayas', promise: this.fetchHimalayas(searchTerms, limit) }
+    );
 
     const results = await Promise.allSettled(tasks.map((t) => t.promise));
-    const allJobs: DiscoveredJobRecord[] = [];
+    const perPortalLists: DiscoveredJobRecord[][] = [];
     const byPortal: Record<string, number> = {};
 
     results.forEach((res, idx) => {
       const portalName = tasks[idx].name;
       if (res.status === 'fulfilled') {
-        byPortal[portalName] = res.value.length;
-        allJobs.push(...res.value);
+        const filtered = res.value.filter((j) => isRelevantEngineeringTitle(j.title));
+        byPortal[portalName] = filtered.length;
+        if (filtered.length > 0) perPortalLists.push(filtered);
       } else {
         byPortal[portalName] = 0;
         logger.warn(`Portal fetch failed: ${portalName}`, { error: res.reason?.message });
       }
     });
 
+    // Round-robin interleave across portals so top N jobs represent EVERY active portal
+    const allJobs: DiscoveredJobRecord[] = [];
+    let round = 0;
+    let addedInRound = true;
+    while (addedInRound) {
+      addedInRound = false;
+      for (const list of perPortalLists) {
+        if (round < list.length) {
+          allJobs.push(list[round]);
+          addedInRound = true;
+        }
+      }
+      round++;
+    }
+
     logger.info('Multi-portal job discovery finished', {
       role,
-      primaryKeyword,
+      location,
       totalFound: allJobs.length,
       byPortal,
     });
@@ -152,13 +187,19 @@ export class MultiPortalAggregator {
     return { jobs: allJobs, byPortal };
   }
 
-  private async fetchRemotive(keyword: string, limit: number): Promise<DiscoveredJobRecord[]> {
+  private async fetchRemotive(terms: string[], limit: number): Promise<DiscoveredJobRecord[]> {
+    // Strictly filter to software-dev category so Remotive never returns Content Creator / Customer Service roles
     const res = await axios.get(
-      `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(keyword)}&limit=${limit}`,
+      `https://remotive.com/api/remote-jobs?category=software-dev&limit=30`,
       { timeout: 10000, headers: { 'User-Agent': 'AutoJobApply/1.0' } }
     );
     const items = Array.isArray(res.data?.jobs) ? res.data.jobs : [];
-    return items.slice(0, limit).map((rj: any) => ({
+    const relevant = items.filter((rj: any) =>
+      isRelevantEngineeringTitle(rj.title || '') &&
+      matchesSearchTerms(`${rj.title || ''} ${(rj.tags || []).join(' ')}`, terms)
+    );
+    const pick = relevant.length > 0 ? relevant : items.filter((rj: any) => isRelevantEngineeringTitle(rj.title || ''));
+    return pick.slice(0, limit).map((rj: any) => ({
       title: rj.title || 'Software Engineer',
       company_name: rj.company_name || 'Unknown Company',
       location: rj.candidate_required_location || 'Remote',

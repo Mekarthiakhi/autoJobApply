@@ -239,9 +239,9 @@ export class MultiAgentPipelineOrchestrator {
             }
           }
 
-          // 4d. Application Preparation: Queue in Review Queue (MANDATORY HUMAN-IN-THE-LOOP BOUNDARY)
+          // 4d. Application Preparation: Queue in Review Queue ONLY if role meets threshold
           state = 'AWAITING_HUMAN_APPROVAL';
-          if (preparationAgentWrapper) {
+          if (meetsThreshold && preparationAgentWrapper) {
             const prepRes = await preparationAgentWrapper.execute(
               {
                 userId,
