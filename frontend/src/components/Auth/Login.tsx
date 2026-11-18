@@ -7,7 +7,7 @@ import styles from './Auth.module.css';
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, demoLogin, loading, error, isAuthenticated, clearError } = useAuth();
+  const { login, loading, error, isAuthenticated, clearError } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,22 +20,6 @@ export const Login: React.FC = () => {
     e.preventDefault();
     clearError();
     const success = await login(email, password);
-    if (success) {
-      navigate('/dashboard', { replace: true });
-    }
-  };
-
-  const handleDemoSignIn = async () => {
-    clearError();
-    const success = await demoLogin();
-    if (success) {
-      navigate('/dashboard', { replace: true });
-    }
-  };
-
-  const handleAkhileshSignIn = async () => {
-    clearError();
-    const success = await login('akhileshmekarthi28@gmail.com', 'TestPassword123!');
     if (success) {
       navigate('/dashboard', { replace: true });
     }
@@ -63,78 +47,6 @@ export const Login: React.FC = () => {
           </div>
           <h1 className="gradient-text slide-in-right" style={{ fontSize: '26px', margin: '4px 0' }}>Welcome Back</h1>
           <p className="auth-subtitle" style={{ fontSize: '13px', color: '#94a3b8' }}>Sign in to manage your automated job applications</p>
-        </div>
-
-        {/* 1-Click Quick Demo Sign In */}
-        <div style={{
-          marginBottom: '20px',
-          padding: '12px 14px',
-          borderRadius: '10px',
-          background: 'rgba(30, 41, 59, 0.7)',
-          border: '1px solid rgba(99, 102, 241, 0.25)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#c7d2fe', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              ⚡ Instant Testing
-            </span>
-            <span style={{ fontSize: '11px', color: '#64748b' }}>Verified Staging User</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleDemoSignIn}
-            disabled={loading}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '7px',
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.25) 100%)',
-              border: '1px solid rgba(129, 140, 248, 0.4)',
-              color: '#e0e7ff',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <span>Sign In as Verified Test User</span>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>(1-Click)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleAkhileshSignIn}
-            disabled={loading}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '7px',
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.25) 100%)',
-              border: '1px solid rgba(52, 211, 153, 0.4)',
-              color: '#d1fae5',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <span>👤 Sign In as Akhilesh Mekarthi</span>
-            <span style={{ fontSize: '11px', color: '#6ee7b7' }}>(Live Candidate)</span>
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', margin: '14px 0', gap: '10px' }}>
-          <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.08)' }}></div>
-          <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>or sign in with email</span>
-          <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.08)' }}></div>
         </div>
 
         <form onSubmit={handleSubmit}>

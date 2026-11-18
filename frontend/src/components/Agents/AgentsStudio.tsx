@@ -148,13 +148,13 @@ export const AgentsStudio: React.FC = () => {
             <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
               <Bot size={20} />
             </span>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Agents Studio & Test Center</h1>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Agents Studio</h1>
             <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
               Active Network (11/11 Healthy)
             </span>
           </div>
           <p className="text-xs text-gray-400">
-            Create, configure, and execute autonomous AI agents that test job discovery and application workflows as your user.
+            Create, configure, and execute autonomous AI agents for job discovery and application workflows.
           </p>
         </div>
 
@@ -166,7 +166,7 @@ export const AgentsStudio: React.FC = () => {
             style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' }}
           >
             <Zap size={14} className={testingAgent ? 'animate-spin' : ''} />
-            <span>{testingAgent ? 'Testing Agent...' : 'Test Agent as User'}</span>
+            <span>{testingAgent ? 'Running Pipeline...' : 'Run Agent Pipeline'}</span>
           </button>
 
           <button
@@ -306,7 +306,7 @@ export const AgentsStudio: React.FC = () => {
                     className="flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white text-[11px] font-semibold transition-all cursor-pointer"
                   >
                     <Play size={10} />
-                    <span>Test Run</span>
+                    <span>Run Now</span>
                   </button>
                 </div>
               </div>

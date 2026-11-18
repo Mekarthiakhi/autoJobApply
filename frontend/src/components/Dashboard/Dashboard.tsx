@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { dashboardAPI, agentsAPI } from '../../api/auth';
+import { dashboardAPI } from '../../api/auth';
 import { Link } from 'react-router-dom';
 import {
   Search, Sparkles, Target, ArrowUp, Inbox, CheckCircle2,
   Send, AlertTriangle, Clock, XCircle, Filter,
-  RefreshCw, ChevronRight, Layers, Award, Zap, Bot
+  RefreshCw, ChevronRight, Layers, Award, Bot
 } from 'lucide-react';
 
 interface MetricData {
@@ -125,21 +125,6 @@ export const Dashboard: React.FC = () => {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const [testingAsUser, setTestingAsUser] = useState(false);
-
-  const handleTestAsUser = async () => {
-    try {
-      setTestingAsUser(true);
-      const response = await agentsAPI.testAsUser({ fastTest: true, limitJobs: 2 });
-      alert(response.data?.message || 'Agent test completed as user!');
-      fetchDashboard();
-    } catch (err: any) {
-      alert('Error testing agent: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setTestingAsUser(false);
-    }
-  };
-
   const handleRunAgents = async () => {
     try {
       setRunningAgents(true);
@@ -192,18 +177,6 @@ export const Dashboard: React.FC = () => {
             {hasActiveFilters && (
               <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
             )}
-          </button>
-
-          <button
-            onClick={handleTestAsUser}
-            disabled={testingAsUser}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
-            style={{
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            }}
-          >
-            <Zap size={14} className={testingAsUser ? 'animate-spin' : ''} />
-            <span>{testingAsUser ? 'Testing...' : 'Test Agent as User'}</span>
           </button>
 
           <button
