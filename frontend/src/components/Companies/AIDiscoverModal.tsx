@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Loader } from 'lucide-react';
+import { jobsAPI, dashboardAPI } from '../../api/auth';
 
 interface AIDiscoverModalProps {
   isOpen: boolean;
@@ -42,10 +43,19 @@ const AIDiscoverModal: React.FC<AIDiscoverModalProps> = ({
 
   const handleDiscover = async () => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsLoading(false);
-    if (onDiscover) onDiscover();
+    try {
+      if (selectedTags.length > 0) {
+        await jobsAPI.searchJobs(selectedTags);
+      } else {
+        await dashboardAPI.runAgents();
+      }
+      if (onDiscover) onDiscover();
+    } catch (err) {
+      console.error('AI company discovery failed', err);
+      alert('Failed to discover companies. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) return null;

@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, Sparkles, TrendingUp, FileText } from 'lucide-react';
 import ResumeSidebar from './ResumeSidebar';
 import ResumeVariant from './ResumeVariant';
-import SkillsGapAnalysis from './SkillsGapAnalysis';
-import { resumeAPI } from '../../api/auth';
+import SkillsGapAnalysis, { Skill } from './SkillsGapAnalysis';
+import { resumeAPI, resumeVersionsAPI, jobsAPI } from '../../api/auth';
 
 interface Variant {
   id: string;
@@ -24,112 +24,144 @@ interface Variant {
   isPinned?: boolean;
 }
 
+function parseJsonArray(val: any): string[] {
+  if (Array.isArray(val)) return val.map(String).filter(Boolean);
+  if (typeof val === 'string' && val.trim()) {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+    } catch {
+      return val.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 const ResumeManager: React.FC = () => {
-  const [variants, setVariants] = useState<Variant[]>([
-    {
-      id: '1',
-      title: 'Google Software Engineer',
-      jobTitle: 'Senior Software Engineer',
-      company: 'Google',
-      matchScore: 94,
-      improvement: 12,
-      createdAt: 'Created 2 days ago',
-      keywordsAdded: [
-        'System Design',
-        'Distributed Systems',
-        'Go',
-        'Protocol Buffers',
-        'Microservices',
-        'Cloud Infrastructure',
-      ],
-      sectionsOptimized: ['Experience', 'Skills', 'Projects'],
-      metrics: {
-        originalMatch: 82,
-        improvedMatch: 94,
-        keywordsAdded: 23,
-        sectionsOptimized: 3,
-      },
-      isPinned: true,
-    },
-    {
-      id: '2',
-      title: 'Microsoft Full Stack Developer',
-      jobTitle: 'Full Stack Developer',
-      company: 'Microsoft',
-      matchScore: 87,
-      improvement: 9,
-      createdAt: 'Created 4 days ago',
-      keywordsAdded: [
-        'Azure',
-        'C#',
-        '.NET',
-        'SQL Server',
-        'React',
-        'TypeScript',
-        'DevOps',
-      ],
-      sectionsOptimized: ['Experience', 'Technical Skills', 'Certifications'],
-      metrics: {
-        originalMatch: 78,
-        improvedMatch: 87,
-        keywordsAdded: 18,
-        sectionsOptimized: 3,
-      },
-    },
-    {
-      id: '3',
-      title: 'Startup Backend Engineer',
-      jobTitle: 'Backend Engineer',
-      company: 'Early-Stage Startup',
-      matchScore: 82,
-      improvement: 8,
-      createdAt: 'Created 1 week ago',
-      keywordsAdded: [
-        'Startup',
-        'MVP',
-        'Rapid Development',
-        'Agile',
-        'Full Ownership',
-        'Scaling',
-      ],
-      sectionsOptimized: ['Experience', 'Projects', 'Achievements'],
-      metrics: {
-        originalMatch: 74,
-        improvedMatch: 82,
-        keywordsAdded: 15,
-        sectionsOptimized: 3,
-      },
-    },
-    {
-      id: '4',
-      title: 'Amazon Staff Engineer',
-      jobTitle: 'Staff Engineer',
-      company: 'Amazon',
-      matchScore: 78,
-      improvement: 6,
-      createdAt: 'Created 2 weeks ago',
-      keywordsAdded: [
-        'Leadership',
-        'Mentorship',
-        'Architecture',
-        'Java',
-        'AWS',
-        'Large Scale',
-      ],
-      sectionsOptimized: ['Experience', 'Leadership', 'Impact Metrics'],
-      metrics: {
-        originalMatch: 72,
-        improvedMatch: 78,
-        keywordsAdded: 12,
-        sectionsOptimized: 3,
-      },
-    },
-  ]);
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [baseResume, setBaseResume] = useState<any>(null);
+  const [currentSkills, setCurrentSkills] = useState<Skill[]>([]);
+  const [recommendedSkills, setRecommendedSkills] = useState<Skill[]>([]);
+  const [targetRole, setTargetRole] = useState<string>('Target Role');
+  const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<'variants' | 'skills'>('variants');
   const [sortBy, setSortBy] = useState<'recent' | 'match' | 'improvement'>('recent');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadResumeData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [resumeRes, versionsRes, jobsRes] = await Promise.all([
+        resumeAPI.getResume().catch(() => ({ data: null })),
+        resumeVersionsAPI.getVersions().catch(() => ({ data: [] })),
+        jobsAPI.getJobs(100).catch(() => ({ data: [] })),
+      ]);
+
+      const resume = resumeRes.data;
+      setBaseResume(resume);
+
+      const rawVersions = Array.isArray(versionsRes.data) ? versionsRes.data : [];
+      const rawJobs = Array.isArray(jobsRes.data)
+        ? jobsRes.data
+        : Array.isArray(jobsRes.data?.jobs)
+        ? jobsRes.data.jobs
+        : [];
+
+      const avgJobScore =
+        rawJobs.length > 0
+          ? Math.round(
+              rawJobs.reduce((sum: number, j: any) => sum + (typeof j.match_score === 'number' ? j.match_score : 0), 0) /
+                Math.max(1, rawJobs.filter((j: any) => typeof j.match_score === 'number').length)
+            )
+          : 0;
+
+      const mappedVariants: Variant[] = rawVersions.map((v: any) => {
+        const skills = parseJsonArray(v.skills || resume?.skills);
+        const keywords = parseJsonArray(v.keywords || resume?.keywords);
+        const allKeywords = Array.from(new Set([...skills, ...keywords])).slice(0, 8);
+        const score = typeof v.match_score === 'number' ? Math.round(v.match_score) : avgJobScore;
+        const label = v.label || v.file_name || 'Resume Version';
+        const parts = label.split(' at ');
+        const jobTitle = parts[0]?.replace(/^Tailored:\s*/i, '') || label;
+        const company = parts[1] || undefined;
+
+        return {
+          id: v.id,
+          title: label,
+          jobTitle,
+          company,
+          matchScore: score,
+          improvement: v.is_default ? 0 : Math.max(0, score - Math.max(0, avgJobScore - 5)),
+          createdAt: v.updated_at || v.created_at
+            ? `Updated ${new Date(v.updated_at || v.created_at).toLocaleDateString()}`
+            : 'Recently saved',
+          keywordsAdded: allKeywords,
+          sectionsOptimized: ['Summary', 'Skills', 'Experience'],
+          metrics: {
+            originalMatch: Math.max(0, score - 5),
+            improvedMatch: score,
+            keywordsAdded: allKeywords.length,
+            sectionsOptimized: 3,
+          },
+          isPinned: Boolean(v.is_default),
+        };
+      });
+
+      setVariants(mappedVariants);
+
+      // Compute dynamic current skills & gap skills from real resume + discovered jobs
+      const resumeSkillsList = Array.from(
+        new Set([...parseJsonArray(resume?.skills), ...parseJsonArray(resume?.keywords)])
+      );
+      const resumeSkillLower = new Set(resumeSkillsList.map((s) => s.toLowerCase()));
+
+      setCurrentSkills(
+        resumeSkillsList.slice(0, 12).map((name, idx) => ({
+          name,
+          proficiency: Math.max(70, 95 - idx * 2),
+          relevance: 90,
+          priority: idx < 4 ? 'high' : 'medium',
+        }))
+      );
+
+      // Extract frequently required keywords from discovered jobs that aren't yet on the resume
+      const missingFreq = new Map<string, number>();
+      if (rawJobs.length > 0 && rawJobs[0]?.title) {
+        setTargetRole(rawJobs[0].title);
+      }
+      for (const job of rawJobs) {
+        const reqList = parseJsonArray(job.requirements);
+        for (const req of reqList) {
+          const clean = req.trim();
+          if (clean.length >= 2 && clean.length <= 40 && !resumeSkillLower.has(clean.toLowerCase())) {
+            missingFreq.set(clean, (missingFreq.get(clean) || 0) + 1);
+          }
+        }
+      }
+
+      const gapSkills: Skill[] = Array.from(missingFreq.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name, count]) => ({
+          name,
+          proficiency: 0,
+          relevance: Math.min(100, 65 + count * 10),
+          priority: count >= 2 ? 'high' : 'medium',
+        }));
+
+      setRecommendedSkills(gapSkills);
+    } catch (error) {
+      console.error('Failed to load resume data', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadResumeData();
+  }, [loadResumeData]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -139,13 +171,13 @@ const ResumeManager: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('resume', file);
-      
-      const response = await resumeAPI.uploadResume(formData);
-      alert('Resume uploaded successfully!');
-      // Here you would typically fetch updated variants or add the parsed response
-    } catch (error) {
+
+      await resumeAPI.uploadResume(formData);
+      await loadResumeData();
+      alert('Resume uploaded and parsed successfully!');
+    } catch (error: any) {
       console.error('Failed to upload resume', error);
-      alert('Failed to upload resume');
+      alert(error?.response?.data?.error || 'Failed to upload resume');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -155,54 +187,66 @@ const ResumeManager: React.FC = () => {
   const sortedVariants = [...variants].sort((a, b) => {
     if (sortBy === 'match') return b.matchScore - a.matchScore;
     if (sortBy === 'improvement') return b.improvement - a.improvement;
-    return 0; // recent (default order)
+    return 0;
   });
 
   const pinnedVariants = sortedVariants.filter((v) => v.isPinned);
   const unpinnedVariants = sortedVariants.filter((v) => !v.isPinned);
 
-  const handleDeleteVariant = (id: string) => {
-    setVariants((prev) => prev.filter((v) => v.id !== id));
+  const handleDeleteVariant = async (id: string) => {
+    if (!window.confirm('Delete this resume version?')) return;
+    try {
+      await resumeVersionsAPI.deleteVersion(id);
+      setVariants((prev) => prev.filter((v) => v.id !== id));
+    } catch (error) {
+      console.error('Failed to delete resume version', error);
+      alert('Failed to delete resume version');
+    }
   };
 
-  const handleTogglePin = (id: string) => {
-    setVariants((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, isPinned: !v.isPinned } : v))
-    );
+  const handleTogglePin = async (id: string) => {
+    try {
+      await resumeVersionsAPI.setDefault(id);
+      setVariants((prev) => prev.map((v) => ({ ...v, isPinned: v.id === id })));
+    } catch (error) {
+      console.error('Failed to set default resume version', error);
+    }
   };
 
-  const stats = {
-    totalVariants: variants.length,
-    averageMatch: Math.round(
-      variants.reduce((sum, v) => sum + v.matchScore, 0) / variants.length
-    ),
-    totalKeywordsAdded: variants.reduce(
-      (sum, v) => sum + v.metrics.keywordsAdded,
-      0
-    ),
-    skillsToImprove: 5,
-  };
+  const averageMatch =
+    variants.length > 0
+      ? Math.round(variants.reduce((sum, v) => sum + v.matchScore, 0) / variants.length)
+      : 0;
+
+  const totalKeywordsAdded = variants.reduce((sum, v) => sum + v.metrics.keywordsAdded, 0);
+
+  const baseKeywords = parseJsonArray(baseResume?.keywords);
+  const baseSkills = parseJsonArray(baseResume?.skills);
+  const completionRate =
+    currentSkills.length + recommendedSkills.length > 0
+      ? Math.round((currentSkills.length / (currentSkills.length + recommendedSkills.length)) * 100)
+      : 0;
 
   return (
     <div className="w-full space-y-8 fade-in">
       {/* Header Section */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start flex-wrap gap-4">
         <div>
           <h1 className="text-4xl font-display font-bold text-white mb-2">
             Resume Manager
           </h1>
           <p className="text-gray-400 text-sm">
-            Create AI-tailored resume variants and close your skills gaps
+            Upload your resume, manage AI-tailored versions, and inspect real skills gaps
           </p>
         </div>
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          style={{ display: 'none' }} 
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
           accept=".pdf,.doc,.docx"
           onChange={handleFileUpload}
         />
-        <button 
+        <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
           className="neumo-btn inline-flex items-center gap-2 text-sm bg-accent-primary text-white shadow-glow-blue"
@@ -214,44 +258,40 @@ const ResumeManager: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Variants */}
         <div className="neumo-card p-6">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-accent-primary/10">
             <FileText className="w-6 h-6 text-accent-primary" />
           </div>
           <h3 className="kpi-label">Resume Variants</h3>
-          <div className="kpi-value text-3xl mt-2">{stats.totalVariants}</div>
-          <p className="text-xs text-gray-500 mt-2">AI-generated versions</p>
+          <div className="kpi-value text-3xl mt-2">{variants.length}</div>
+          <p className="text-xs text-gray-500 mt-2">Saved versions in database</p>
         </div>
 
-        {/* Average Match Score */}
         <div className="neumo-card p-6">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-accent-success/10">
             <TrendingUp className="w-6 h-6 text-accent-success" />
           </div>
           <h3 className="kpi-label">Avg Match Score</h3>
-          <div className="kpi-value text-3xl mt-2">{stats.averageMatch}%</div>
-          <p className="text-xs text-accent-success mt-2">↗ Consistently high</p>
+          <div className="kpi-value text-3xl mt-2">{averageMatch > 0 ? `${averageMatch}%` : '—'}</div>
+          <p className="text-xs text-gray-500 mt-2">Based on discovered jobs</p>
         </div>
 
-        {/* Keywords Added */}
         <div className="neumo-card p-6">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-accent-info/10">
             <Sparkles className="w-6 h-6 text-accent-info" />
           </div>
-          <h3 className="kpi-label">Keywords Added</h3>
-          <div className="kpi-value text-3xl mt-2">+{stats.totalKeywordsAdded}</div>
-          <p className="text-xs text-gray-500 mt-2">Across all variants</p>
+          <h3 className="kpi-label">Extracted Keywords</h3>
+          <div className="kpi-value text-3xl mt-2">{totalKeywordsAdded || baseKeywords.length}</div>
+          <p className="text-xs text-gray-500 mt-2">Parsed from your resume</p>
         </div>
 
-        {/* Skills to Improve */}
         <div className="neumo-card p-6">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-accent-warning/10">
             <span className="text-xl">📚</span>
           </div>
-          <h3 className="kpi-label">Skills to Improve</h3>
-          <div className="kpi-value text-3xl mt-2">{stats.skillsToImprove}</div>
-          <p className="text-xs text-gray-500 mt-2">See gap analysis</p>
+          <h3 className="kpi-label">Skills to Add</h3>
+          <div className="kpi-value text-3xl mt-2">{recommendedSkills.length}</div>
+          <p className="text-xs text-gray-500 mt-2">From job requirements</p>
         </div>
       </div>
 
@@ -266,7 +306,7 @@ const ResumeManager: React.FC = () => {
           }`}
         >
           <FileText className="inline mr-2" size={16} />
-          Resume Variants
+          Resume Variants ({variants.length})
         </button>
         <button
           onClick={() => setActiveTab('skills')}
@@ -284,107 +324,125 @@ const ResumeManager: React.FC = () => {
       {/* Content */}
       {activeTab === 'variants' && (
         <div className="space-y-8">
-          {/* Sort Options */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => setSortBy('recent')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                sortBy === 'recent'
-                  ? 'bg-accent-primary text-white shadow-glow-blue'
-                  : 'neumo-btn'
-              }`}
-            >
-              Most Recent
-            </button>
-            <button
-              onClick={() => setSortBy('match')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                sortBy === 'match'
-                  ? 'bg-accent-primary text-white shadow-glow-blue'
-                  : 'neumo-btn'
-              }`}
-            >
-              Highest Match
-            </button>
-            <button
-              onClick={() => setSortBy('improvement')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                sortBy === 'improvement'
-                  ? 'bg-accent-primary text-white shadow-glow-blue'
-                  : 'neumo-btn'
-              }`}
-            >
-              Most Improved
-            </button>
-          </div>
-
-          {/* Pinned Variants */}
-          {pinnedVariants.length > 0 && (
-            <div>
-              <h2 className="text-lg font-display font-semibold text-white mb-4 flex items-center gap-2">
-                <span className="text-accent-primary">⭐</span>
-                Pinned Variants ({pinnedVariants.length})
-              </h2>
-              <div className="space-y-4">
-                {pinnedVariants.map((variant) => (
-                  <ResumeVariant
-                    key={variant.id}
-                    {...variant}
-                    isPinned={true}
-                    onPin={() => handleTogglePin(variant.id)}
-                    onDelete={() => handleDeleteVariant(variant.id)}
-                  />
-                ))}
-              </div>
+          {loading ? (
+            <div className="neumo-card p-12 text-center text-gray-400 text-sm">
+              Loading your resume versions...
             </div>
-          )}
-
-          {/* Other Variants */}
-          {unpinnedVariants.length > 0 && (
-            <div>
-              <h2 className="text-lg font-display font-semibold text-white mb-4">
-                Other Variants ({unpinnedVariants.length})
-              </h2>
-              <div className="space-y-4">
-                {unpinnedVariants.map((variant) => (
-                  <ResumeVariant
-                    key={variant.id}
-                    {...variant}
-                    isPinned={false}
-                    onPin={() => handleTogglePin(variant.id)}
-                    onDelete={() => handleDeleteVariant(variant.id)}
-                  />
-                ))}
-              </div>
+          ) : variants.length === 0 ? (
+            <div className="neumo-card p-12 text-center border border-dashed border-gray-700">
+              <h3 className="text-lg font-semibold text-white mb-2">No resumes uploaded yet</h3>
+              <p className="text-sm text-gray-400 mb-6">
+                Upload your PDF or DOCX resume to parse your skills, match jobs, and generate tailored resume versions.
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="neumo-btn inline-flex items-center gap-2 text-sm bg-accent-primary text-white"
+              >
+                <Plus size={16} />
+                Upload Base Resume
+              </button>
             </div>
+          ) : (
+            <>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSortBy('recent')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    sortBy === 'recent' ? 'bg-accent-primary text-white shadow-glow-blue' : 'neumo-btn'
+                  }`}
+                >
+                  Most Recent
+                </button>
+                <button
+                  onClick={() => setSortBy('match')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    sortBy === 'match' ? 'bg-accent-primary text-white shadow-glow-blue' : 'neumo-btn'
+                  }`}
+                >
+                  Highest Match
+                </button>
+                <button
+                  onClick={() => setSortBy('improvement')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    sortBy === 'improvement' ? 'bg-accent-primary text-white shadow-glow-blue' : 'neumo-btn'
+                  }`}
+                >
+                  Most Improved
+                </button>
+              </div>
+
+              {pinnedVariants.length > 0 && (
+                <div>
+                  <h2 className="text-lg font-display font-semibold text-white mb-4 flex items-center gap-2">
+                    <span className="text-accent-primary">⭐</span>
+                    Default Resume ({pinnedVariants.length})
+                  </h2>
+                  <div className="space-y-4">
+                    {pinnedVariants.map((variant) => (
+                      <ResumeVariant
+                        key={variant.id}
+                        {...variant}
+                        isPinned={true}
+                        onPin={() => handleTogglePin(variant.id)}
+                        onDelete={() => handleDeleteVariant(variant.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {unpinnedVariants.length > 0 && (
+                <div>
+                  <h2 className="text-lg font-display font-semibold text-white mb-4">
+                    Tailored & Saved Versions ({unpinnedVariants.length})
+                  </h2>
+                  <div className="space-y-4">
+                    {unpinnedVariants.map((variant) => (
+                      <ResumeVariant
+                        key={variant.id}
+                        {...variant}
+                        isPinned={false}
+                        onPin={() => handleTogglePin(variant.id)}
+                        onDelete={() => handleDeleteVariant(variant.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
       {activeTab === 'skills' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Skills Gap Analysis */}
           <div className="lg:col-span-2">
-            <SkillsGapAnalysis targetRole="Senior Full Stack Engineer" />
+            <SkillsGapAnalysis
+              targetRole={targetRole}
+              currentSkills={currentSkills}
+              recommendedSkills={recommendedSkills}
+              completionRate={completionRate}
+            />
           </div>
 
-          {/* Sidebar */}
           <div>
-            <ResumeSidebar />
+            <ResumeSidebar
+              resumeTitle={baseResume?.file_name || 'No base resume uploaded'}
+              lastUpdated={
+                baseResume?.uploaded_at
+                  ? `Uploaded ${new Date(baseResume.uploaded_at).toLocaleDateString()}`
+                  : 'Upload a PDF to begin'
+              }
+              matchScore={averageMatch}
+              keywordsCount={baseKeywords.length}
+              skillsCount={baseSkills.length}
+              experienceSummary={baseResume?.experience ? 'Parsed' : 'Not uploaded'}
+              educationSummary={baseResume?.education ? 'Parsed' : 'Not uploaded'}
+            />
           </div>
         </div>
       )}
-
-      {/* Info Box */}
-      <div className="neumo-card p-6 bg-accent-primary/5 border-l-4 border-accent-primary">
-        <h3 className="text-sm font-semibold text-accent-primary mb-2">💡 Pro Tips</h3>
-        <ul className="text-sm text-gray-300 space-y-1">
-          <li>• Create variants for different roles to maximize match scores</li>
-          <li>• Pin your top 2-3 variants for quick access</li>
-          <li>• Close your skills gaps to improve overall resume quality</li>
-          <li>• Download and share your variants with recruiters</li>
-        </ul>
-      </div>
     </div>
   );
 };

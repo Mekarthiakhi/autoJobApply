@@ -1,24 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { authAPI } from '../../api/auth';
+import { authAPI, resumeAPI } from '../../api/auth';
 import { Save } from 'lucide-react';
 
 export const Settings: React.FC = () => {
-  const [preferredLocations, setPreferredLocations] = useState(['Remote', 'Hyderabad', 'Bangalore']);
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
   const [newLocation, setNewLocation] = useState('');
   const [isAddingLocation, setIsAddingLocation] = useState(false);
   const [minMatchScore, setMinMatchScore] = useState(80);
   
-  const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [autoApplyEnabled, setAutoApplyEnabled] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [currentResumeName, setCurrentResumeName] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await authAPI.getProfile();
-        const profile = response.data;
+        const [profileRes, resumeRes] = await Promise.all([
+          authAPI.getProfile(),
+          resumeAPI.getResume().catch(() => ({ data: null })),
+        ]);
+        const profile = profileRes.data;
         if (profile.preferredLocations) {
           let locs = profile.preferredLocations;
           if (typeof locs === 'string') {
@@ -28,14 +34,15 @@ export const Settings: React.FC = () => {
               locs = locs.split(',').map((s: string) => s.trim()).filter(Boolean);
             }
           }
-          if (Array.isArray(locs) && locs.length > 0) {
+          if (Array.isArray(locs)) {
             setPreferredLocations(locs);
           }
         }
-        if (profile.minMatchScore) setMinMatchScore(profile.minMatchScore);
-        if (profile.telegramEnabled !== undefined) setTelegramEnabled(profile.telegramEnabled);
-        if (profile.emailEnabled !== undefined) setEmailEnabled(profile.emailEnabled);
-        if (profile.autoApplyEnabled !== undefined) setAutoApplyEnabled(profile.autoApplyEnabled);
+        if (typeof profile.minMatchScore === 'number') setMinMatchScore(profile.minMatchScore);
+        if (profile.telegramEnabled !== undefined) setTelegramEnabled(Boolean(profile.telegramEnabled));
+        if (profile.emailEnabled !== undefined) setEmailEnabled(Boolean(profile.emailEnabled));
+        if (profile.autoApplyEnabled !== undefined) setAutoApplyEnabled(Boolean(profile.autoApplyEnabled));
+        if (resumeRes.data?.file_name) setCurrentResumeName(resumeRes.data.file_name);
       } catch (error) {
         console.error('Failed to fetch profile', error);
       }
@@ -46,6 +53,7 @@ export const Settings: React.FC = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
+      setSaveMessage(null);
       await authAPI.updateProfile({
         preferredLocations,
         minMatchScore,
@@ -54,10 +62,32 @@ export const Settings: React.FC = () => {
         emailEnabled,
         autoApplyEnabled,
       });
-      setTimeout(() => setSaving(false), 1000); // Mock success
+      setSaveMessage('Settings saved successfully.');
+      setTimeout(() => setSaveMessage(null), 3000);
     } catch (error) {
       console.error(error);
+      setSaveMessage('Failed to save settings.');
+    } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingResume(true);
+      const formData = new FormData();
+      formData.append('resume', file);
+      await resumeAPI.uploadResume(formData);
+      setCurrentResumeName(file.name);
+      setSaveMessage(`Uploaded ${file.name} successfully.`);
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err) {
+      console.error('Resume upload failed', err);
+      setSaveMessage('Failed to upload resume.');
+    } finally {
+      setUploadingResume(false);
     }
   };
 
@@ -191,14 +221,32 @@ export const Settings: React.FC = () => {
       <div className="setting-section" style={{ marginBottom: '20px' }}>
         <div className="setting-title">Resume</div>
         <div className="drop-zone relative">
-          <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx,.doc" />
+          <input
+            type="file"
+            onChange={handleResumeUpload}
+            disabled={uploadingResume}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            accept=".pdf,.docx,.doc"
+          />
           <div className="drop-icon">📄</div>
-          <div className="drop-text"><strong>Drop your resume here</strong> or click to browse</div>
+          <div className="drop-text">
+            {uploadingResume
+              ? 'Uploading and parsing resume...'
+              : currentResumeName
+              ? <>Active resume: <strong>{currentResumeName}</strong> (click to replace)</>
+              : <><strong>Drop your resume here</strong> or click to browse</>}
+          </div>
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '6px' }}>
             PDF, DOCX · max 5 MB · used for AI match scoring
           </div>
         </div>
       </div>
+
+      {saveMessage && (
+        <div style={{ marginBottom: '12px', fontSize: '13px', color: saveMessage.includes('Failed') ? '#f87171' : '#4ade80' }}>
+          {saveMessage}
+        </div>
+      )}
 
       <button className="save-btn" onClick={handleSave} disabled={saving}>
         <Save size={15} />

@@ -17,7 +17,7 @@ interface ActivityHeatmapProps {
 
 const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
   title = '12-Week Activity Heatmap',
-  data = generateMockData(),
+  data = [],
   onDayHover,
 }) => {
   const [hoveredDay, setHoveredDay] = useState<HeatmapDay | null>(null);
@@ -180,63 +180,25 @@ const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
         <div className="neumo-card p-4 text-center">
           <p className="text-xs text-gray-400 mb-1">Average Per Day</p>
           <p className="text-lg font-semibold text-accent-info">
-            {Math.round(
-              data.reduce((sum, d) => sum + d.count, 0) / data.filter((d) => d.count > 0).length
-            )}
+            {data.filter((d) => d.count > 0).length > 0
+              ? Math.round(
+                  data.reduce((sum, d) => sum + d.count, 0) / data.filter((d) => d.count > 0).length
+                )
+              : 0}
           </p>
           <p className="text-xs text-gray-500 mt-1">Active days</p>
         </div>
 
         <div className="neumo-card p-4 text-center">
-          <p className="text-xs text-gray-400 mb-1">Streak</p>
-          <p className="text-lg font-semibold text-accent-warning">12 days</p>
-          <p className="text-xs text-gray-500 mt-1">Current streak</p>
+          <p className="text-xs text-gray-400 mb-1">Active Days</p>
+          <p className="text-lg font-semibold text-accent-warning">
+            {data.filter((d) => d.count > 0).length} days
+          </p>
+          <p className="text-xs text-gray-500 mt-1">With recorded activity</p>
         </div>
-      </div>
-
-      {/* Insights */}
-      <div className="neumo-card p-6 bg-accent-primary/5 border-l-4 border-accent-primary">
-        <h4 className="font-semibold text-white mb-3">📊 Heatmap Insights</h4>
-        <ul className="space-y-2 text-sm text-gray-300">
-          <li>• Consistent application volume with average {Math.round(data.reduce((sum, d) => sum + d.count, 0) / 12)} per day</li>
-          <li>• Peak activity on weekdays, lower on weekends</li>
-          <li>• Most productive week: Week {weeks.findIndex((w) => w.reduce((s, d) => s + d.count, 0) === Math.max(...weeks.map((w) => w.reduce((s, d) => s + d.count, 0)))) + 1}</li>
-          <li>• Maintaining consistent effort increases your visibility to recruiters</li>
-        </ul>
       </div>
     </div>
   );
 };
-
-// Mock data generator
-function generateMockData(): HeatmapDay[] {
-  const data: HeatmapDay[] = [];
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 84); // 12 weeks ago
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  for (let i = 0; i < 84; i++) {
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-    const dayOfWeek = date.getDay();
-    const dayName = dayNames[dayOfWeek];
-
-    // Generate realistic data with higher activity on weekdays
-    let baseCount = dayOfWeek === 0 || dayOfWeek === 6 ? 2 : 5;
-    const variation = Math.floor(Math.random() * 8);
-    const count = baseCount + variation;
-
-    data.push({
-      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      day: dayName,
-      week: Math.floor(i / 7) + 1,
-      count,
-      intensity: Math.min(100, (count / 13) * 100), // Normalize to 0-100
-    });
-  }
-
-  return data;
-}
 
 export default ActivityHeatmap;

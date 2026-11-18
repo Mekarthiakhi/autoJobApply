@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, ChevronDown, MoreHorizontal, Pause, Trash2, Plus } from 'lucide-react';
 import FitScoreBadge from './FitScoreBadge';
 
-interface Company {
+export interface Company {
   id: string;
   name: string;
   industry: string;
@@ -21,68 +21,7 @@ interface CompaniesTableProps {
 }
 
 const CompaniesTable: React.FC<CompaniesTableProps> = ({
-  companies = [
-    {
-      id: '1',
-      name: 'Google',
-      industry: 'Technology',
-      roles: 12,
-      lastApplied: '2 days ago',
-      fitScore: 94,
-      status: 'active',
-      location: 'Mountain View, CA',
-    },
-    {
-      id: '2',
-      name: 'Microsoft',
-      industry: 'Technology',
-      roles: 8,
-      lastApplied: '5 days ago',
-      fitScore: 87,
-      status: 'active',
-      location: 'Redmond, WA',
-    },
-    {
-      id: '3',
-      name: 'Apple',
-      industry: 'Technology',
-      roles: 5,
-      lastApplied: '1 week ago',
-      fitScore: 76,
-      status: 'active',
-      location: 'Cupertino, CA',
-    },
-    {
-      id: '4',
-      name: 'Meta',
-      industry: 'Technology',
-      roles: 15,
-      lastApplied: '3 days ago',
-      fitScore: 82,
-      status: 'active',
-      location: 'Menlo Park, CA',
-    },
-    {
-      id: '5',
-      name: 'Amazon',
-      industry: 'Technology',
-      roles: 20,
-      lastApplied: 'Today',
-      fitScore: 71,
-      status: 'active',
-      location: 'Seattle, WA',
-    },
-    {
-      id: '6',
-      name: 'Tesla',
-      industry: 'Automotive/Technology',
-      roles: 7,
-      lastApplied: '1 week ago',
-      fitScore: 65,
-      status: 'paused',
-      location: 'Austin, TX',
-    },
-  ],
+  companies = [],
   onAddToCampaign,
   onPause,
   onRemove,

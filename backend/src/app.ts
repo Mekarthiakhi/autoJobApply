@@ -205,6 +205,10 @@ async function startServer() {
           logger.info('🧹 Removed pre-seeded demo account akhileshmekarthi28@gmail.com for clean registration');
         }
       }
+      // Also clean up static demo-seeded jobs when demo seeding is disabled
+      await sql.run(
+        `DELETE FROM jobs WHERE id IN ('job-react-senior-apex', 'job-react-frontend-techcorp', 'job-ui-react-fintech')`
+      );
     } catch (cleanupErr) {
       logger.warn('Seeded account cleanup skipped:', cleanupErr);
     }

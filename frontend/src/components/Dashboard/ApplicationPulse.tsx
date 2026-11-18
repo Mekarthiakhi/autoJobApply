@@ -16,39 +16,14 @@ interface ApplicationPulseProps {
 }
 
 const ApplicationPulse: React.FC<ApplicationPulseProps> = ({
-  events = [
-    {
-      id: '1',
-      company: 'Google',
-      role: 'Senior Frontend Engineer',
-      timestamp: new Date(Date.now() - 5 * 60000),
-      status: 'applied',
-    },
-    {
-      id: '2',
-      company: 'Microsoft',
-      role: 'Full Stack Developer',
-      timestamp: new Date(Date.now() - 12 * 60000),
-      status: 'applied',
-    },
-    {
-      id: '3',
-      company: 'Apple',
-      role: 'iOS Developer',
-      timestamp: new Date(Date.now() - 25 * 60000),
-      status: 'viewed',
-    },
-    {
-      id: '4',
-      company: 'Meta',
-      role: 'React Engineer',
-      timestamp: new Date(Date.now() - 45 * 60000),
-      status: 'responded',
-    },
-  ],
-  isRunning = true,
+  events = [],
+  isRunning = false,
 }) => {
   const [localEvents, setLocalEvents] = useState<ApplicationEvent[]>(events);
+
+  useEffect(() => {
+    setLocalEvents(events);
+  }, [events]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -121,8 +96,14 @@ const ApplicationPulse: React.FC<ApplicationPulseProps> = ({
       {/* Status Indicator */}
       <div className="mb-6 p-3 rounded-lg bg-accent-primary/10 border border-accent-primary/20">
         <p className="text-sm text-gray-300">
-          <span className="text-accent-primary font-semibold">AutoApply</span> sent{' '}
-          <span className="text-white font-bold">47 applications</span> while you slept 🚀
+          {localEvents.length > 0 ? (
+            <>
+              <span className="text-accent-primary font-semibold">AutoApply</span> tracked{' '}
+              <span className="text-white font-bold">{localEvents.length} recent application event{localEvents.length === 1 ? '' : 's'}</span>
+            </>
+          ) : (
+            <>No recent application activity yet. Run your pipeline to start discovering jobs.</>
+          )}
         </p>
       </div>
 
