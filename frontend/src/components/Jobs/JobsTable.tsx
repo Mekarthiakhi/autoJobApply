@@ -31,6 +31,9 @@ function formatRelativeTime(dateStr?: string): string {
 function getSourceBadgeStyle(source?: string): { bg: string; color: string; label: string } {
   const s = (source || 'direct').toLowerCase();
   const map: Record<string, { bg: string; color: string; label: string }> = {
+    greenhouse: { bg: 'rgba(16,185,129,0.18)', color: '#34d399', label: 'Greenhouse ATS' },
+    ashby: { bg: 'rgba(99,102,241,0.18)', color: '#a5b4fc', label: 'Ashby ATS' },
+    lever: { bg: 'rgba(59,130,246,0.18)', color: '#60a5fa', label: 'Lever ATS' },
     remotive: { bg: 'rgba(139,92,246,0.16)', color: '#c4b5fd', label: 'Remotive' },
     remoteok: { bg: 'rgba(239,68,68,0.16)', color: '#fca5a5', label: 'RemoteOK' },
     jobicy: { bg: 'rgba(14,165,233,0.16)', color: '#7dd3fc', label: 'Jobicy' },
@@ -59,6 +62,9 @@ export const JobsTable: React.FC = () => {
   const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
+  const [activelyHiringOnly, setActivelyHiringOnly] = useState<boolean>(true);
+  const [directAtsOnly, setDirectAtsOnly] = useState<boolean>(false);
+  const [remoteOnly, setRemoteOnly] = useState<boolean>(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
@@ -88,10 +94,26 @@ export const JobsTable: React.FC = () => {
     new Set(rawJobs.map((j: any) => (j.source || '').toLowerCase()).filter(Boolean))
   ) as string[];
 
+  const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const isJobActivelyHiring = (j: any) => {
+    if ((j.status || '').toLowerCase() === 'expired') return false;
+    const postedMs = new Date(j.posted_date || j.created_at || Date.now()).getTime();
+    if (!Number.isNaN(postedMs) && postedMs < fourteenDaysAgo) return false;
+    return !/no longer accepting|position filled|job closed|expired/i.test(`${j.title || ''} ${(j.job_description || '').slice(0, 300)}`);
+  };
+  const isJobDirectAts = (j: any) =>
+    ['greenhouse', 'ashby', 'lever'].includes((j.source || '').toLowerCase()) ||
+    /greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|^mailto:/i.test(j.apply_url || '');
+  const isJobRemote = (j: any) =>
+    /remote|worldwide|anywhere|work from home|wfh/i.test(`${j.location || ''} ${j.title || ''}`);
+
   const safeJobs = rawJobs.filter((j: any) => {
     const score = typeof j.match_score === 'number' ? j.match_score : 0;
     if (minScoreFilter > 0 && score < minScoreFilter) return false;
-    if (activeTab === 'matched' && score < 80) return false;
+    if (activelyHiringOnly && !isJobActivelyHiring(j)) return false;
+    if (directAtsOnly && !isJobDirectAts(j)) return false;
+    if (remoteOnly && !isJobRemote(j)) return false;
+    if (activeTab === 'matched' && score < 55) return false;
     if (activeTab === 'saved' && !j.is_saved && !appliedJobIds.has(j.id)) return false;
     if (selectedPortal !== 'all' && (j.source || '').toLowerCase() !== selectedPortal) return false;
     return true;
@@ -298,6 +320,34 @@ export const JobsTable: React.FC = () => {
           </div>
         </div>
 
+        {/* Quick Hiring & Direct Apply Filter Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <button
+            type="button"
+            onClick={() => setActivelyHiringOnly(!activelyHiringOnly)}
+            className={activelyHiringOnly ? 'neumo-btn-primary' : 'neumo-btn'}
+            style={{ padding: '6px 12px', fontSize: '12px' }}
+          >
+            🔥 Actively Hiring ({rawJobs.filter(isJobActivelyHiring).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setDirectAtsOnly(!directAtsOnly)}
+            className={directAtsOnly ? 'neumo-btn-primary' : 'neumo-btn'}
+            style={{ padding: '6px 12px', fontSize: '12px' }}
+          >
+            ⚡ Direct ATS Apply ({rawJobs.filter(isJobDirectAts).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setRemoteOnly(!remoteOnly)}
+            className={remoteOnly ? 'neumo-btn-primary' : 'neumo-btn'}
+            style={{ padding: '6px 12px', fontSize: '12px' }}
+          >
+            🌍 Remote Only ({rawJobs.filter(isJobRemote).length})
+          </button>
+        </div>
+
         {/* Connected Live Portals Strip */}
         {portals.length > 0 && (
           <div style={{
@@ -394,6 +444,36 @@ export const JobsTable: React.FC = () => {
                     >
                       {sourceBadge.label}
                     </span>
+                    {isJobActivelyHiring(job) && (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          background: 'rgba(16,185,129,0.14)',
+                          border: '1px solid rgba(16,185,129,0.32)',
+                          color: '#34d399',
+                        }}
+                      >
+                        Actively Hiring
+                      </span>
+                    )}
+                    {isJobDirectAts(job) && (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          background: 'rgba(108,99,255,0.16)',
+                          border: '1px solid rgba(108,99,255,0.35)',
+                          color: '#a5b4fc',
+                        }}
+                      >
+                        Direct ATS
+                      </span>
+                    )}
                   </div>
                   <div className="job-meta">
                     <span>{company} · {job.location || 'Remote'}</span>

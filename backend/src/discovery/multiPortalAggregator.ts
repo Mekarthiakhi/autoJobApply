@@ -353,7 +353,7 @@ export class MultiPortalAggregator {
         query: q,
         num_pages: '1',
         country: isIndia ? 'in' : 'us',
-        date_posted: 'all',
+        date_posted: 'week',
         ...(wantsRemote ? { remote_jobs_only: 'true' } : {}),
       },
       headers: {
@@ -368,8 +368,24 @@ export class MultiPortalAggregator {
       ? res.data.data
       : [];
     return items.slice(0, limit).map((j: any) => {
-      const publisher = (j.job_publisher || 'jsearch').toLowerCase();
-      const source = publisher.includes('linkedin')
+      // Prefer any direct company ATS link inside apply_options over login-walled LinkedIn/Indeed links
+      const applyOptions: Array<{ apply_link?: string; publisher?: string; is_direct?: boolean }> =
+        Array.isArray(j.apply_options) ? j.apply_options : [];
+      const directAtsOpt = applyOptions.find((opt) =>
+        /greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|breezy\.hr|recruitee\.com/i.test(opt.apply_link || '')
+      );
+      const directCompanyOpt = applyOptions.find(
+        (opt) => opt.is_direct && opt.apply_link && !/linkedin\.com|indeed\.com|glassdoor\.com/i.test(opt.apply_link)
+      );
+      const chosenApplyUrl = directAtsOpt?.apply_link || directCompanyOpt?.apply_link || j.job_apply_link || j.job_google_link || '';
+      const publisher = (directAtsOpt?.publisher || directCompanyOpt?.publisher || j.job_publisher || 'jsearch').toLowerCase();
+      const source = /greenhouse\.io/i.test(chosenApplyUrl)
+        ? 'greenhouse'
+        : /lever\.co/i.test(chosenApplyUrl)
+        ? 'lever'
+        : /ashbyhq\.com/i.test(chosenApplyUrl)
+        ? 'ashby'
+        : publisher.includes('linkedin')
         ? 'linkedin'
         : publisher.includes('indeed')
         ? 'indeed'
@@ -391,7 +407,7 @@ export class MultiPortalAggregator {
         experience_level: j.job_employment_type || 'Full-Time',
         required_skills: Array.isArray(j.job_required_skills) ? j.job_required_skills : [],
         job_description: stripHtml(j.job_description || ''),
-        apply_url: j.job_apply_link || j.job_google_link || '',
+        apply_url: chosenApplyUrl,
         source,
         external_id: `${source}-${j.job_uid || (j.job_id || Date.now()).toString().slice(0, 48)}`,
         status: 'active',
@@ -475,18 +491,30 @@ export class MultiPortalAggregator {
     });
   }
 
-  // Official Public Greenhouse Job Board API (Direct company ATS application forms)
+  // Official Public Greenhouse Job Board API (Direct company ATS application forms — actively hiring Frontend/Full-Stack)
   private async fetchGreenhouseDirect(terms: string[], limit: number): Promise<DiscoveredJobRecord[]> {
     const boards = [
-      { slug: 'vercel', name: 'Vercel' },
+      { slug: 'stripe', name: 'Stripe' },
+      { slug: 'elastic', name: 'Elastic' },
+      { slug: 'okta', name: 'Okta' },
+      { slug: 'reddit', name: 'Reddit' },
+      { slug: 'brex', name: 'Brex' },
       { slug: 'gitlab', name: 'GitLab' },
+      { slug: 'dropbox', name: 'Dropbox' },
+      { slug: 'pinterest', name: 'Pinterest' },
+      { slug: 'figma', name: 'Figma' },
+      { slug: 'robinhood', name: 'Robinhood' },
+      { slug: 'coinbase', name: 'Coinbase' },
+      { slug: 'asana', name: 'Asana' },
+      { slug: 'calendly', name: 'Calendly' },
+      { slug: 'klaviyo', name: 'Klaviyo' },
+      { slug: 'vercel', name: 'Vercel' },
       { slug: 'netlify', name: 'Netlify' },
-      { slug: 'algolia', name: 'Algolia' },
-      { slug: 'launchdarkly', name: 'LaunchDarkly' },
-      { slug: 'circleci', name: 'CircleCI' },
-      { slug: 'cloudflare', name: 'Cloudflare' },
-      { slug: 'twilio', name: 'Twilio' },
     ];
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const frontendFirst = /\b(front[\s-]?end|react|full[\s-]?stack|ui\s+engineer|web\s+developer|javascript|typescript)\b/i;
+    const skipSeniorMismatch = /\b(staff|principal|director|vp\b|manager|ios\b|android|rust|embedded|firmware)\b/i;
+
     const collected: DiscoveredJobRecord[] = [];
     const results = await Promise.allSettled(
       boards.map(async (b) => {
@@ -498,11 +526,16 @@ export class MultiPortalAggregator {
         return jobs
           .filter((j: any) => {
             const title = j.title || '';
-            const loc = j.location?.name || '';
-            return (
-              isRelevantEngineeringTitle(title) &&
-              (/remote|india|anywhere|global/i.test(loc) || matchesSearchTerms(`${title} ${loc}`, terms))
-            );
+            const updatedMs = j.updated_at ? new Date(j.updated_at).getTime() : Date.now();
+            if (updatedMs < thirtyDaysAgo) return false; // Actively hiring freshness check
+            if (skipSeniorMismatch.test(title)) return false;
+            return frontendFirst.test(title) || (isRelevantEngineeringTitle(title) && matchesSearchTerms(`${title} ${j.location?.name || ''}`, terms));
+          })
+          .sort((a: any, bJob: any) => {
+            const aFe = frontendFirst.test(a.title || '') ? 1 : 0;
+            const bFe = frontendFirst.test(bJob.title || '') ? 1 : 0;
+            if (bFe !== aFe) return bFe - aFe;
+            return new Date(bJob.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
           })
           .slice(0, 2)
           .map((j: any) => ({
@@ -524,19 +557,21 @@ export class MultiPortalAggregator {
     for (const r of results) {
       if (r.status === 'fulfilled') collected.push(...r.value);
     }
-    return collected.slice(0, limit);
+    return collected.slice(0, Math.max(limit, 12));
   }
 
   // Official Public Ashby Job Board API (Direct remote-first company ATS forms)
   private async fetchAshbyDirect(terms: string[], limit: number): Promise<DiscoveredJobRecord[]> {
     const boards = [
+      { slug: 'vanta', name: 'Vanta' },
+      { slug: 'ramp', name: 'Ramp' },
       { slug: 'linear', name: 'Linear' },
       { slug: 'supabase', name: 'Supabase' },
       { slug: 'posthog', name: 'PostHog' },
       { slug: 'resend', name: 'Resend' },
-      { slug: 'vanta', name: 'Vanta' },
       { slug: 'modal', name: 'Modal' },
     ];
+    const frontendFirst = /\b(front[\s-]?end|react|full[\s-]?stack|ui\s+engineer|web\s+developer|javascript|typescript)\b/i;
     const collected: DiscoveredJobRecord[] = [];
     const results = await Promise.allSettled(
       boards.map(async (b) => {
@@ -547,10 +582,12 @@ export class MultiPortalAggregator {
         const jobs = Array.isArray(res.data?.jobs) ? res.data.jobs : [];
         return jobs
           .filter((j: any) => {
+            if (j.isListed === false) return false;
             const title = j.title || '';
             const loc = `${j.location || ''} ${j.isRemote ? 'Remote' : ''}`;
-            return isRelevantEngineeringTitle(title) && (j.isRemote || matchesSearchTerms(`${title} ${loc}`, terms));
+            return frontendFirst.test(title) || (isRelevantEngineeringTitle(title) && (j.isRemote || matchesSearchTerms(`${title} ${loc}`, terms)));
           })
+          .sort((a: any, bJob: any) => (frontendFirst.test(bJob.title || '') ? 1 : 0) - (frontendFirst.test(a.title || '') ? 1 : 0))
           .slice(0, 2)
           .map((j: any) => ({
             title: j.title,
@@ -571,7 +608,7 @@ export class MultiPortalAggregator {
     for (const r of results) {
       if (r.status === 'fulfilled') collected.push(...r.value);
     }
-    return collected.slice(0, limit);
+    return collected.slice(0, Math.max(limit, 8));
   }
 
   // Official Public Lever Postings API (Direct company ATS forms)

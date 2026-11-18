@@ -14,6 +14,8 @@ export const Settings: React.FC = () => {
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [autoApplyEnabled, setAutoApplyEnabled] = useState(true);
   const [autoApplyIntervalHours, setAutoApplyIntervalHours] = useState<number>(1);
+  const [activelyHiringOnly, setActivelyHiringOnly] = useState(true);
+  const [directApplyFirst, setDirectApplyFirst] = useState(true);
   const [lastAutoApplyRunAt, setLastAutoApplyRunAt] = useState<string | null>(null);
   const [nextAutoApplyRunAt, setNextAutoApplyRunAt] = useState<string | null>(null);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
@@ -57,6 +59,8 @@ export const Settings: React.FC = () => {
         if (profile.emailEnabled !== undefined) setEmailEnabled(Boolean(profile.emailEnabled));
         if (profile.autoApplyEnabled !== undefined) setAutoApplyEnabled(Boolean(profile.autoApplyEnabled));
         if (typeof profile.autoApplyIntervalHours === 'number') setAutoApplyIntervalHours(profile.autoApplyIntervalHours);
+        if (profile.activelyHiringOnly !== undefined) setActivelyHiringOnly(Boolean(profile.activelyHiringOnly));
+        if (profile.directApplyFirst !== undefined) setDirectApplyFirst(Boolean(profile.directApplyFirst));
         if (profile.lastAutoApplyRunAt) setLastAutoApplyRunAt(profile.lastAutoApplyRunAt);
         if (profile.nextAutoApplyRunAt) setNextAutoApplyRunAt(profile.nextAutoApplyRunAt);
         if (profile.whatsappEnabled !== undefined) setWhatsappEnabled(Boolean(profile.whatsappEnabled));
@@ -86,6 +90,8 @@ export const Settings: React.FC = () => {
         emailEnabled,
         autoApplyEnabled,
         autoApplyIntervalHours,
+        activelyHiringOnly,
+        directApplyFirst,
         whatsappEnabled,
         whatsappPhone,
         whatsappApiKey,
@@ -247,6 +253,28 @@ export const Settings: React.FC = () => {
                 }}
               />
             )}
+          </div>
+
+          <div style={{ marginTop: '18px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
+            <div className="toggle-row" style={{ paddingTop: '6px' }}>
+              <div className="toggle-info">
+                <div className="toggle-name">Actively Hiring Only (Default ON)</div>
+                <div className="toggle-desc">Only apply to fresh active postings (≤ 14–21 days) &amp; auto-skip closed jobs</div>
+              </div>
+              <div className={`toggle ${activelyHiringOnly ? 'on' : ''}`} onClick={() => setActivelyHiringOnly(!activelyHiringOnly)}>
+                <div className="toggle-dot"></div>
+              </div>
+            </div>
+
+            <div className="toggle-row" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <div className="toggle-info">
+                <div className="toggle-name">Direct ATS Auto-Apply First (Default ON)</div>
+                <div className="toggle-desc">Prioritize Greenhouse, Ashby, Lever &amp; direct email roles over login-walled portals</div>
+              </div>
+              <div className={`toggle ${directApplyFirst ? 'on' : ''}`} onClick={() => setDirectApplyFirst(!directApplyFirst)}>
+                <div className="toggle-dot"></div>
+              </div>
+            </div>
           </div>
         </div>
 

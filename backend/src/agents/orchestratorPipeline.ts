@@ -155,16 +155,20 @@ export class MultiAgentPipelineOrchestrator {
       // Check whether auto-apply is enabled for this user (enabled by default unless turned off in Settings)
       const autoSettings = await db.get<{
         auto_apply_enabled: number;
+        actively_hiring_only: number;
+        direct_apply_first: number;
         email_notifications: number;
         whatsapp_enabled: number;
         whatsapp_phone: string | null;
         whatsapp_api_key: string | null;
       }>(
-        `SELECT auto_apply_enabled, email_notifications, whatsapp_enabled, whatsapp_phone, whatsapp_api_key
+        `SELECT auto_apply_enabled, actively_hiring_only, direct_apply_first, email_notifications, whatsapp_enabled, whatsapp_phone, whatsapp_api_key
          FROM automation_settings WHERE user_id = ?`,
         [userId]
       );
       const autoApplyEnabled = autoSettings ? autoSettings.auto_apply_enabled !== 0 : true;
+      const activelyHiringOnly = autoSettings ? autoSettings.actively_hiring_only !== 0 : true;
+      const directApplyFirst = autoSettings ? autoSettings.direct_apply_first !== 0 : true;
       const userRecord = await db.get<{ email: string; full_name: string }>(
         `SELECT email, full_name FROM users WHERE id = ?`,
         [userId]
@@ -198,24 +202,38 @@ export class MultiAgentPipelineOrchestrator {
       ).filter((t) => t.length >= 2);
 
       const scoredCandidates: Array<{ id: string; preScore: number }> = [];
+      const activeCutoffMs = Date.now() - 21 * 24 * 60 * 60 * 1000;
       for (const jId of poolIds) {
-        const jRow = await db.get<{ title: string; location: string; source: string; apply_url: string; job_description: string; required_skills: string }>(
-          `SELECT title, location, source, apply_url, job_description, required_skills FROM jobs WHERE id = ?`,
+        const jRow = await db.get<{ title: string; location: string; source: string; apply_url: string; job_description: string; required_skills: string; status: string; posted_date: string }>(
+          `SELECT title, location, source, apply_url, job_description, required_skills, status, posted_date FROM jobs WHERE id = ?`,
           [jId]
         );
         if (!jRow) continue;
+        if (jRow.status === 'expired') continue;
+        if (activelyHiringOnly && jRow.posted_date) {
+          const postedMs = new Date(jRow.posted_date).getTime();
+          if (!Number.isNaN(postedMs) && postedMs < activeCutoffMs) continue;
+        }
         const titleLower = (jRow.title || '').toLowerCase();
         const textHay = `${titleLower} ${(jRow.required_skills || '').toLowerCase()} ${(jRow.job_description || '').slice(0, 1200).toLowerCase()}`;
+        if (activelyHiringOnly && /no longer accepting|position filled|job closed|expired/i.test(textHay)) continue;
 
         let preScore = 0;
         for (const tok of candidateTokens.slice(0, 25)) {
           if (titleLower.includes(tok)) preScore += 12;
           else if (textHay.includes(tok)) preScore += 4;
         }
-        // Bonus for Remote & Direct ATS
+        // Bonus for Remote & Direct Company ATS (Greenhouse/Ashby/Lever/Direct Email)
         if (/remote|worldwide|anywhere/i.test(`${jRow.location || ''} ${titleLower}`)) preScore += 8;
-        if (['greenhouse', 'ashby', 'lever'].includes(jRow.source) || /greenhouse\.io|lever\.co|ashbyhq\.com/i.test(jRow.apply_url || '')) {
-          preScore += 5;
+        const isDirectAts =
+          ['greenhouse', 'ashby', 'lever'].includes(jRow.source) ||
+          /greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|^mailto:/i.test(jRow.apply_url || '');
+        if (isDirectAts) {
+          preScore += directApplyFirst ? 22 : 5;
+        }
+        // Deprioritize login-walled aggregators when Direct Apply First is enabled
+        if (directApplyFirst && /linkedin\.com|indeed\.com|glassdoor\.com/i.test(jRow.apply_url || '')) {
+          preScore -= 12;
         }
         // Penalize mismatched extreme seniority or unrelated specialties unless present in candidate's resume
         for (const mismatch of ['staff ', 'principal', 'director', 'vp ', 'manager', 'rust', 'ios ', 'android', 'embedded', 'firmware', 'cobol', 'sap ', 'salesforce', 'ruby on rails']) {
@@ -422,6 +440,13 @@ export class MultiAgentPipelineOrchestrator {
                     },
                     coverLetterText: coverData?.content || '',
                   });
+
+                  if (extResult.externalStatus === 'JOB_CLOSED') {
+                    await db.run(`UPDATE jobs SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [job.id]);
+                    await db.run(`DELETE FROM applications WHERE id = ? AND user_id = ?`, [appId, userId]);
+                    logger.info(`🚫 Skipped closed/expired posting "${job.title}" at "${job.company_name}"`);
+                    continue;
+                  }
 
                   const isExternallyVerified =
                     extResult.externalStatus === 'VERIFIED_ATS_SUBMITTED' ||

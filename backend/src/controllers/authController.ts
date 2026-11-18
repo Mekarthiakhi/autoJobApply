@@ -266,6 +266,7 @@ export async function getProfile(req: Request, res: Response) {
     const settings = await db.get(
       `SELECT telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled,
               auto_apply_interval_hours, last_auto_apply_run_at,
+              actively_hiring_only, direct_apply_first,
               whatsapp_enabled, whatsapp_phone, whatsapp_api_key,
               imap_enabled, imap_email, imap_password, imap_host
        FROM automation_settings WHERE user_id = ?`,
@@ -317,6 +318,8 @@ export async function getProfile(req: Request, res: Response) {
       autoApplyIntervalHours: intervalHours,
       lastAutoApplyRunAt: lastRunAt,
       nextAutoApplyRunAt: nextRunAt,
+      activelyHiringOnly: settings ? settings.actively_hiring_only !== 0 : true,
+      directApplyFirst: settings ? settings.direct_apply_first !== 0 : true,
       whatsappEnabled: settings?.whatsapp_enabled === 1,
       whatsappPhone,
       whatsappApiKey: settings?.whatsapp_api_key || '',
@@ -350,6 +353,8 @@ export async function updateProfile(req: Request, res: Response) {
       emailEnabled,
       autoApplyEnabled,
       autoApplyIntervalHours,
+      activelyHiringOnly,
+      directApplyFirst,
       whatsappEnabled,
       whatsappPhone,
       whatsappApiKey,
@@ -380,6 +385,8 @@ export async function updateProfile(req: Request, res: Response) {
     const tEnabled = telegramEnabled ? 1 : 0;
     const eEnabled = emailEnabled === false ? 0 : 1;
     const aEnabled = autoApplyEnabled === false ? 0 : 1;
+    const activeOnly = activelyHiringOnly === false ? 0 : 1;
+    const directFirst = directApplyFirst === false ? 0 : 1;
     const intervalHours = Math.min(5, Math.max(1, Math.round(Number(autoApplyIntervalHours) || 1)));
     const freqLabel = intervalHours === 1 ? 'hourly' : `every_${intervalHours}h`;
     const wEnabled = whatsappEnabled ? 1 : 0;
@@ -393,11 +400,11 @@ export async function updateProfile(req: Request, res: Response) {
     await db.run(
       `INSERT INTO automation_settings (
          user_id, telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled,
-         auto_apply_interval_hours, job_search_frequency,
+         auto_apply_interval_hours, job_search_frequency, actively_hiring_only, direct_apply_first,
          whatsapp_enabled, whatsapp_phone, whatsapp_api_key,
          imap_enabled, imap_email, imap_password, imap_host
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (user_id) DO UPDATE SET
          telegram_enabled = excluded.telegram_enabled,
          telegram_chat_id = excluded.telegram_chat_id,
@@ -405,6 +412,8 @@ export async function updateProfile(req: Request, res: Response) {
          auto_apply_enabled = excluded.auto_apply_enabled,
          auto_apply_interval_hours = excluded.auto_apply_interval_hours,
          job_search_frequency = excluded.job_search_frequency,
+         actively_hiring_only = excluded.actively_hiring_only,
+         direct_apply_first = excluded.direct_apply_first,
          whatsapp_enabled = excluded.whatsapp_enabled,
          whatsapp_phone = excluded.whatsapp_phone,
          whatsapp_api_key = excluded.whatsapp_api_key,
@@ -421,6 +430,8 @@ export async function updateProfile(req: Request, res: Response) {
         aEnabled,
         intervalHours,
         freqLabel,
+        activeOnly,
+        directFirst,
         wEnabled,
         cleanPhone,
         (whatsappApiKey || '').trim(),
@@ -450,6 +461,8 @@ export async function updateProfile(req: Request, res: Response) {
       autoApplyIntervalHours: intervalHours,
       lastAutoApplyRunAt: lastRunAt,
       nextAutoApplyRunAt: nextRunAt,
+      activelyHiringOnly: Boolean(activeOnly),
+      directApplyFirst: Boolean(directFirst),
       whatsappEnabled: Boolean(wEnabled),
       whatsappPhone: cleanPhone,
       whatsappApiKey: (whatsappApiKey || '').trim(),

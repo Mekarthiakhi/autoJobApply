@@ -10,6 +10,7 @@ export type ExternalSubmissionStatus =
   | 'VERIFIED_ATS_SUBMITTED'
   | 'VERIFIED_EMAIL_SENT'
   | 'MANUAL_APPLY_REQUIRED'
+  | 'JOB_CLOSED'
   | 'USER_CONFIRMED_APPLIED';
 
 export interface SubmissionProof {
@@ -327,6 +328,25 @@ export class ExternalApplicationSubmitter {
       let currentUrl = page.url();
       let atsPlatform = detectAtsPlatform(currentUrl);
 
+      // Step 2a-0: Check if the job posting is closed/expired (actively hiring check!)
+      const initialBodyText = ((await page.textContent('body').catch(() => '')) || '').slice(0, 3000);
+      if (/no longer accepting applications|this job is no longer available|position has been filled|job has expired|job posting has closed|sorry, this job is closed/i.test(initialBodyText)) {
+        const shot = await safeScreenshot(page, applicationId);
+        return {
+          externalStatus: 'JOB_CLOSED',
+          proof: {
+            method: 'manual_required',
+            verified: false,
+            atsPlatform,
+            finalUrl: currentUrl,
+            screenshotFile: shot.file,
+            screenshotUrl: shot.url,
+            reason: `Skipped — ${atsPlatform} shows this position is closed or no longer actively hiring.`,
+            attemptedAt,
+          },
+        };
+      }
+
       // Step 2a: Strictly stop on CAPTCHA / Anti-Bot / Security Verification
       const initialChallenges = await controlledBrowserAgent.detectChallenges(page);
       if (initialChallenges.length > 0) {
@@ -387,7 +407,9 @@ export class ExternalApplicationSubmitter {
       hasEmailInput = (await page.locator('input[type="email"]:visible, input[name*="email" i]:visible, #email:visible').count().catch(() => 0)) > 0;
       if (!hasEmailInput) {
         const applyTrigger = page
-          .locator('a:has-text("Apply for this job"), a:has-text("Apply for this Role"), a:has-text("Apply now"), button:has-text("Apply for this job"), button:has-text("Apply now"), a[href*="/application"], a[href*="/apply"]')
+          .locator(
+            'button:has-text("Application"), a:has-text("Application"), a:has-text("Apply for this job"), a:has-text("Apply for this Role"), a:has-text("Apply on company site"), a:has-text("Apply directly"), a:has-text("Apply now"), button:has-text("Apply for this job"), button:has-text("Apply now"), button:has-text("Apply"), a[href*="/application"], a[href*="/apply"]'
+          )
           .first();
         if (await applyTrigger.isVisible().catch(() => false)) {
           try {
