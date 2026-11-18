@@ -34,8 +34,8 @@ export async function runWorkflow(req: Request, res: Response) {
     if (!userId) throw new AppError(401, 'Unauthorized');
 
     const options = {
-      limitJobs: req.body?.limitJobs || 5,
-      skipBrowserInspection: req.body?.skipBrowserInspection ?? false,
+      limitJobs: req.body?.limitJobs || 10,
+      skipBrowserInspection: req.body?.skipBrowserInspection ?? Boolean(req.body?.sync),
       initialJobIds: req.body?.initialJobIds,
     };
 

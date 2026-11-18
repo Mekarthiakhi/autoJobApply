@@ -1,8 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useJobs } from '../../hooks/useJobs';
-import { applicationsAPI, dashboardAPI } from '../../api/auth';
-import { Search, SlidersHorizontal, Clock, Home, Building, RefreshCw } from 'lucide-react';
+import { applicationsAPI, dashboardAPI, jobsAPI } from '../../api/auth';
+import { Search, SlidersHorizontal, Clock, Home, Building, RefreshCw, ExternalLink, Globe } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+
+interface PortalStatus {
+  id: string;
+  name: string;
+  coverage: string;
+  status: 'active' | 'needs_key';
+  requiresKey: boolean;
+  envVar?: string;
+}
 
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return 'Recently synced';
@@ -19,12 +28,32 @@ function formatRelativeTime(dateStr?: string): string {
   return parsed.toLocaleDateString();
 }
 
+function getSourceBadgeStyle(source?: string): { bg: string; color: string; label: string } {
+  const s = (source || 'direct').toLowerCase();
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    remotive: { bg: 'rgba(139,92,246,0.16)', color: '#c4b5fd', label: 'Remotive' },
+    remoteok: { bg: 'rgba(239,68,68,0.16)', color: '#fca5a5', label: 'RemoteOK' },
+    jobicy: { bg: 'rgba(14,165,233,0.16)', color: '#7dd3fc', label: 'Jobicy' },
+    arbeitnow: { bg: 'rgba(245,158,11,0.16)', color: '#fcd34d', label: 'Arbeitnow' },
+    himalayas: { bg: 'rgba(16,185,129,0.16)', color: '#6ee7b7', label: 'Himalayas' },
+    linkedin: { bg: 'rgba(59,130,246,0.18)', color: '#93c5fd', label: 'LinkedIn' },
+    indeed: { bg: 'rgba(99,102,241,0.18)', color: '#a5b4fc', label: 'Indeed' },
+    glassdoor: { bg: 'rgba(34,197,94,0.16)', color: '#86efac', label: 'Glassdoor' },
+    naukri: { bg: 'rgba(249,115,22,0.16)', color: '#fdba74', label: 'Naukri' },
+    adzuna: { bg: 'rgba(20,184,166,0.16)', color: '#5eead4', label: 'Adzuna' },
+    jooble: { bg: 'rgba(236,72,153,0.16)', color: '#f9a8d4', label: 'Jooble' },
+  };
+  return map[s] || { bg: 'rgba(255,255,255,0.08)', color: '#cbd5e1', label: s.toUpperCase() };
+}
+
 export const JobsTable: React.FC = () => {
   const toast = useToast();
   const { jobs, loading, fetchJobs, searchJobs } = useJobs();
   const [applications, setApplications] = useState<any[]>([]);
+  const [portals, setPortals] = useState<PortalStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  const [selectedPortal, setSelectedPortal] = useState<string>('all');
   const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
@@ -33,12 +62,12 @@ export const JobsTable: React.FC = () => {
 
   const loadData = async () => {
     await fetchJobs();
-    try {
-      const appRes = await applicationsAPI.getApplications();
-      setApplications(Array.isArray(appRes.data) ? appRes.data : []);
-    } catch {
-      setApplications([]);
-    }
+    const [appRes, portalsRes] = await Promise.all([
+      applicationsAPI.getApplications().catch(() => ({ data: [] })),
+      jobsAPI.getPortals().catch(() => ({ data: { portals: [] } })),
+    ]);
+    setApplications(Array.isArray(appRes.data) ? appRes.data : []);
+    setPortals(Array.isArray(portalsRes.data?.portals) ? portalsRes.data.portals : []);
     setLastSyncedAt(new Date());
   };
 
@@ -53,16 +82,19 @@ export const JobsTable: React.FC = () => {
     : [];
 
   const appliedJobIds = new Set(applications.map((a: any) => a.job_id));
+  const discoveredSources = Array.from(
+    new Set(rawJobs.map((j: any) => (j.source || '').toLowerCase()).filter(Boolean))
+  ) as string[];
 
   const safeJobs = rawJobs.filter((j: any) => {
     const score = typeof j.match_score === 'number' ? j.match_score : 0;
     if (minScoreFilter > 0 && score < minScoreFilter) return false;
     if (activeTab === 'matched' && score < 80) return false;
     if (activeTab === 'saved' && !j.is_saved && !appliedJobIds.has(j.id)) return false;
+    if (selectedPortal !== 'all' && (j.source || '').toLowerCase() !== selectedPortal) return false;
     return true;
   });
 
-  // Compute dynamic metrics from real DB records
   const now = Date.now();
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
@@ -98,15 +130,15 @@ export const JobsTable: React.FC = () => {
   const handleDiscoverJobs = async () => {
     try {
       setDiscovering(true);
-      toast.info('Running live job discovery & AI matching...');
-      const res = await dashboardAPI.runAgents({ sync: true, limitJobs: 6 });
+      toast.info('Searching all connected live job portals & scoring against your resume...');
+      const res = await dashboardAPI.runAgents({ sync: true, limitJobs: 12 });
       await loadData();
       const discovered = res.data?.summary?.jobsDiscovered;
       const queued = res.data?.summary?.draftsQueuedForReview;
       toast.success(
         typeof discovered === 'number'
-          ? `Discovered ${discovered} live jobs and queued ${queued || 0} drafts in Review Queue!`
-          : 'Live job discovery completed!'
+          ? `Discovered ${discovered} live jobs across portals and queued ${queued || 0} drafts in Review Queue!`
+          : 'Live multi-portal job discovery completed!'
       );
     } catch (err) {
       console.error('Job discovery failed', err);
@@ -201,6 +233,30 @@ export const JobsTable: React.FC = () => {
               <RefreshCw size={14} className={discovering ? 'animate-spin' : ''} />
               {discovering ? 'Discovering...' : 'Discover Live Jobs'}
             </button>
+
+            {discoveredSources.length > 0 && (
+              <select
+                value={selectedPortal}
+                onChange={(e) => setSelectedPortal(e.target.value)}
+                style={{
+                  background: '#12131F',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  color: 'white',
+                  outline: 'none',
+                }}
+              >
+                <option value="all">All Portals ({rawJobs.length})</option>
+                {discoveredSources.map((src) => (
+                  <option key={src} value={src}>
+                    {getSourceBadgeStyle(src).label}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#12131F', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 14px' }}>
               <Search size={14} color="rgba(255,255,255,0.3)" />
               <input
@@ -211,6 +267,7 @@ export const JobsTable: React.FC = () => {
                 style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: 'white', width: '150px' }}
               />
             </div>
+
             <div style={{ position: 'relative' }}>
               <div
                 onClick={() => setShowFilterDropdown(!showFilterDropdown)}
@@ -238,6 +295,46 @@ export const JobsTable: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Connected Live Portals Strip */}
+        {portals.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            padding: '10px 14px',
+            marginBottom: '18px',
+            borderRadius: '10px',
+            background: 'rgba(255,255,255,0.025)',
+            border: '1px solid rgba(255,255,255,0.06)',
+          }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px' }}>
+              <Globe size={13} /> Portals:
+            </span>
+            {portals.map((p) => (
+              <span
+                key={p.id}
+                title={`${p.name} — ${p.coverage}${p.status === 'needs_key' ? ` (Add ${p.envVar} to enable)` : ' (Live)'}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  padding: '3px 9px',
+                  borderRadius: '999px',
+                  background: p.status === 'active' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.1)',
+                  border: p.status === 'active' ? '1px solid rgba(52,211,153,0.3)' : '1px solid rgba(251,191,36,0.25)',
+                  color: p.status === 'active' ? '#6ee7b7' : '#fcd34d',
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: p.status === 'active' ? '#34d399' : '#fbbf24' }}></span>
+                {p.name}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="stat-strip">
           <div className="stat-cell">
@@ -270,6 +367,7 @@ export const JobsTable: React.FC = () => {
           safeJobs.map((job: any) => {
             const company = job.company_name || 'Company';
             const logoColor = getLogoColor(company);
+            const sourceBadge = getSourceBadgeStyle(job.source);
             const hasScore = typeof job.match_score === 'number';
             const score = hasScore ? Math.round(job.match_score) : 0;
             const isApplied = appliedJobIds.has(job.id);
@@ -280,7 +378,21 @@ export const JobsTable: React.FC = () => {
                   {company.substring(0, 2).toUpperCase()}
                 </div>
                 <div className="job-info">
-                  <div className="job-title">{job.title}</div>
+                  <div className="job-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span>{job.title}</span>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        padding: '2px 7px',
+                        borderRadius: '999px',
+                        background: sourceBadge.bg,
+                        color: sourceBadge.color,
+                      }}
+                    >
+                      {sourceBadge.label}
+                    </span>
+                  </div>
                   <div className="job-meta">
                     <span>{company} · {job.location || 'Remote'}</span>
                     <span>
@@ -298,6 +410,29 @@ export const JobsTable: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <div className={`match-pill ${getMatchClass(job.match_score)}`}>{getMatchLabel(job.match_score)}</div>
+                  {job.apply_url && job.apply_url.startsWith('http') && (
+                    <a
+                      href={job.apply_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open original job posting"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#cbd5e1',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        textDecoration: 'none',
+                      }}
+                    >
+                      View <ExternalLink size={12} />
+                    </a>
+                  )}
                   <button
                     onClick={() => handleApply(job.id)}
                     disabled={applyingJobId === job.id || isApplied}
@@ -325,7 +460,7 @@ export const JobsTable: React.FC = () => {
               No jobs discovered yet
             </div>
             <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-              Upload your resume in the Resume tab or click &ldquo;Discover Live Jobs&rdquo; to find matching roles.
+              Click &ldquo;Discover Live Jobs&rdquo; above to pull live roles from all connected portals.
             </div>
           </div>
         )}

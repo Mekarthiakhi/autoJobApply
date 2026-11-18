@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import {
   getJobs,
+  getJobPortals,
   getJobStats,
   getJobDetails,
   searchJobs,
@@ -14,7 +15,8 @@ import {
 
 const router = Router();
 
-// Stats (must be before /:jobId)
+// Stats & Portals (must be before /:jobId)
+router.get('/portals', authMiddleware, getJobPortals);
 router.get('/stats', authMiddleware, getJobStats);
 
 // Saved searches (must be before /:jobId)

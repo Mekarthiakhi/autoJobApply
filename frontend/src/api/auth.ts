@@ -48,7 +48,8 @@ export const authAPI = {
 };
 
 export const jobsAPI = {
-  getJobs: (limit = 50) => client.get(`/jobs?limit=${limit}`),
+  getJobs: (limit = 100) => client.get(`/jobs?limit=${limit}`),
+  getPortals: () => client.get('/jobs/portals'),
   getJobDetails: (jobId: string) => client.get(`/jobs/${jobId}`),
   searchJobs: (keywords: string[]) => client.post('/jobs/search', { keywords }),
 };

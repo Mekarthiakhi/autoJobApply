@@ -4,11 +4,16 @@ import { MatchScoreRepository } from '../repositories/matchScoreRepository.js';
 import { savedSearchRepository } from '../repositories/savedSearchRepository.js';
 import { jobNormalizer } from '../discovery/jobNormalizer.js';
 import { explainableScorer } from '../discovery/explainableScorer.js';
+import { multiPortalAggregator } from '../discovery/multiPortalAggregator.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getDatabase } from '../config/database.js';
 
 const jobRepository = new JobRepository();
 const matchScoreRepository = new MatchScoreRepository();
+
+export async function getJobPortals(_req: Request, res: Response) {
+  res.json({ portals: multiPortalAggregator.getPortalStatuses() });
+}
 
 export async function getJobStats(req: Request, res: Response) {
   try {

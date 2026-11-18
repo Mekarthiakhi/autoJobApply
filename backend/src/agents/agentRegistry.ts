@@ -42,7 +42,7 @@ import { telegramService } from '../services/telegramService.js';
 import { linkedinScraper } from '../scrapers/linkedinScraper.js';
 import { indeedScraper } from '../scrapers/indeedScraper.js';
 import { naukriScraper } from '../scrapers/naukriScraper.js';
-import axios from 'axios';
+import { multiPortalAggregator } from '../discovery/multiPortalAggregator.js';
 
 const jobRepository = new JobRepository();
 const activityLogRepository = new ActivityLogRepository();
@@ -98,91 +98,26 @@ export class JobDiscoveryAgentWrapper implements AgentContract<JobDiscoveryInput
   readonly name = 'JobDiscoveryAgent';
   readonly responsibility = AgentResponsibility.JOB_DISCOVERY;
 
-  private stripHtml(html: string): string {
-    return (html || '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 3500);
-  }
-
   async execute(input: JobDiscoveryInput, ctx: AgentContext): Promise<AgentResult<JobDiscoveryOutput>> {
     return executeSafely(this.name, this.responsibility, ctx, async () => {
-      const allJobs: any[] = [];
       const role = input.targetRoles[0] || 'React Developer';
-      const searchKeyword = role.split(/\s+/)[0] || 'React';
-      const limit = Math.min(input.limitPerPlatform || 10, 15);
+      const limitPerPortal = Math.min(Math.max(input.limitPerPlatform || 5, 3), 10);
 
-      // Primary Live Public Job APIs (HTTPS port 443 — fast, real companies, real apply URLs)
-      try {
-        const remotiveRes = await axios.get(
-          `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(searchKeyword)}&limit=${limit}`,
-          { timeout: 12000 }
-        );
-        const remotiveJobs = Array.isArray(remotiveRes.data?.jobs) ? remotiveRes.data.jobs : [];
-        for (const rj of remotiveJobs.slice(0, limit)) {
-          allJobs.push({
-            title: rj.title || role,
-            company_name: rj.company_name || 'Unknown Company',
-            location: rj.candidate_required_location || 'Remote',
-            salary: rj.salary || 'Not specified',
-            experience_level: rj.job_type === 'full_time' ? 'Full-Time' : (rj.job_type || 'Full-Time'),
-            required_skills: Array.isArray(rj.tags) ? rj.tags.slice(0, 12) : [],
-            job_description: this.stripHtml(rj.description || ''),
-            apply_url: rj.url || '',
-            source: 'remotive',
-            external_id: `remotive-${rj.id}`,
-            status: 'active',
-            posted_date: rj.publication_date ? new Date(rj.publication_date) : new Date(),
-          });
-        }
-        logger.info(`Fetched ${remotiveJobs.length} live jobs from Remotive API`, { searchKeyword });
-      } catch (err: any) {
-        logger.warn('Remotive public API fetch skipped', { error: err.message });
-      }
+      // Query all active live job portals in parallel (Remotive, RemoteOK, Jobicy, Arbeitnow, Himalayas + JSearch/Adzuna/Jooble if configured)
+      const { jobs: allJobs } = await multiPortalAggregator.discoverAllPortals({
+        role,
+        keywords: input.targetRoles,
+        locations: input.targetLocations,
+        limitPerPortal,
+      });
 
-      // Secondary Live Public Job API: Arbeitnow
-      if (allJobs.length < limit) {
-        try {
-          const arbRes = await axios.get('https://www.arbeitnow.com/api/job-board-api', { timeout: 12000 });
-          const arbJobs = Array.isArray(arbRes.data?.data) ? arbRes.data.data : [];
-          const kwLower = searchKeyword.toLowerCase();
-          const matchingArb = arbJobs.filter((j: any) =>
-            `${j.title || ''} ${(j.tags || []).join(' ')} ${j.description || ''}`.toLowerCase().includes(kwLower)
-          );
-          for (const aj of matchingArb.slice(0, Math.max(3, limit - allJobs.length))) {
-            allJobs.push({
-              title: aj.title || role,
-              company_name: aj.company_name || 'Unknown Company',
-              location: aj.remote ? `${aj.location || 'Remote'} (Remote)` : (aj.location || 'Remote'),
-              salary: 'Not specified',
-              experience_level: 'Full-Time',
-              required_skills: Array.isArray(aj.tags) ? aj.tags.slice(0, 12) : [],
-              job_description: this.stripHtml(aj.description || ''),
-              apply_url: aj.url || '',
-              source: 'arbeitnow',
-              external_id: `arbeitnow-${aj.slug}`,
-              status: 'active',
-              posted_date: aj.created_at ? new Date(aj.created_at * 1000) : new Date(),
-            });
-          }
-          logger.info(`Fetched ${matchingArb.length} matching live jobs from Arbeitnow API`, { searchKeyword });
-        } catch (err: any) {
-          logger.warn('Arbeitnow public API fetch skipped', { error: err.message });
-        }
-      }
-
-      // Optional Playwright scrapers only if public APIs returned nothing
+      // Optional Playwright scrapers only if all HTTP portals yielded 0 results
       if (allJobs.length === 0 && !input.fastTest && input.mode !== 'test') {
         const location = input.targetLocations[0] || 'Remote';
         if (input.platforms.includes('linkedin')) {
           try {
             const jobs = await linkedinScraper.searchJobs([role], location);
-            allJobs.push(...jobs);
+            allJobs.push(...(jobs as any[]));
           } catch (err: any) {
             logger.warn('LinkedIn discovery skipped', { error: err.message });
           }
@@ -190,7 +125,7 @@ export class JobDiscoveryAgentWrapper implements AgentContract<JobDiscoveryInput
         if (input.platforms.includes('indeed')) {
           try {
             const jobs = await indeedScraper.searchJobs([role], location);
-            allJobs.push(...jobs);
+            allJobs.push(...(jobs as any[]));
           } catch (err: any) {
             logger.warn('Indeed discovery skipped', { error: err.message });
           }
@@ -198,7 +133,7 @@ export class JobDiscoveryAgentWrapper implements AgentContract<JobDiscoveryInput
         if (input.platforms.includes('naukri')) {
           try {
             const jobs = await naukriScraper.searchJobs([role], location);
-            allJobs.push(...jobs);
+            allJobs.push(...(jobs as any[]));
           } catch (err: any) {
             logger.warn('Naukri discovery skipped', { error: err.message });
           }
@@ -207,8 +142,9 @@ export class JobDiscoveryAgentWrapper implements AgentContract<JobDiscoveryInput
 
       // Final fallback: reuse existing real jobs from repository
       if (allJobs.length === 0) {
-        const existingJobs = await jobRepository.findByKeywords([searchKeyword], limit);
-        allJobs.push(...existingJobs);
+        const searchKeyword = role.split(/\s+/)[0] || 'React';
+        const existingJobs = await jobRepository.findByKeywords([searchKeyword], limitPerPortal * 2);
+        allJobs.push(...(existingJobs as any[]));
       }
 
       const jobIds: string[] = [];
