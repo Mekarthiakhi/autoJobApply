@@ -259,11 +259,23 @@ async function startServer() {
         `INSERT OR IGNORE INTO automation_settings (user_id, auto_apply_enabled, auto_apply_threshold, job_search_frequency)
          SELECT DISTINCT r.user_id, 1, 55, 'hourly' FROM resumes r`
       );
-      // Default empty preferred_locations on existing users to Remote-first
+      // Default empty preferred_locations on existing users to Remote-first & migrate legacy 80% threshold to 55%
       await sql.run(
         `UPDATE users
          SET preferred_locations = '["Remote"]'
          WHERE preferred_locations IS NULL OR preferred_locations = '' OR preferred_locations = '[]'`
+      );
+      await sql.run(
+        `UPDATE users SET min_match_score = 55 WHERE min_match_score = 80`
+      );
+      // Clear stale cooldown timestamp if user has 0 verified applications created in the last 30 minutes
+      await sql.run(
+        `UPDATE automation_settings
+         SET last_auto_apply_run_at = NULL
+         WHERE last_auto_apply_run_at IS NOT NULL
+           AND user_id NOT IN (
+             SELECT DISTINCT user_id FROM applications WHERE updated_at >= datetime('now', '-30 minutes')
+           )`
       );
       // Backfill WhatsApp mobile phone from uploaded resumes for users who haven't set one yet
       const { extractMobilePhoneFromResume } = await import('./utils/phoneExtractor.js');

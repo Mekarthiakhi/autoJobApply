@@ -175,8 +175,61 @@ export class MultiAgentPipelineOrchestrator {
       );
       const reportItems: ApplicationReportItem[] = [];
 
-      // Limit job batch size if requested
-      const jobsToProcess = options.limitJobs ? uniqueJobIds.slice(0, options.limitJobs) : uniqueJobIds;
+      // Pre-rank discovered jobs by fast resume skill overlap & skip already-applied jobs
+      // so the AI agents always evaluate the candidate's highest-fit fresh roles first!
+      const alreadyAppliedRows = await db.all<Array<{ job_id: string }>>(
+        `SELECT job_id FROM applications WHERE user_id = ?`,
+        [userId]
+      );
+      const alreadyAppliedSet = new Set((alreadyAppliedRows || []).map((r) => r.job_id));
+      const freshJobIds = uniqueJobIds.filter((id) => !alreadyAppliedSet.has(id));
+      const poolIds = freshJobIds.length > 0 ? freshJobIds : uniqueJobIds;
+
+      const resumeLower = resumeText.toLowerCase();
+      const baseResumeSkillsRow = await db.get<{ skills: string | null }>(
+        `SELECT skills FROM resumes WHERE user_id = ? LIMIT 1`,
+        [userId]
+      );
+      const candidateTokens = Array.from(
+        new Set([
+          ...this.parseSkills(baseResumeSkillsRow?.skills).map((s) => s.toLowerCase()),
+          ...plan.targetRoles.flatMap((r) => r.toLowerCase().split(/[\s,/()-]+/)),
+        ])
+      ).filter((t) => t.length >= 2);
+
+      const scoredCandidates: Array<{ id: string; preScore: number }> = [];
+      for (const jId of poolIds) {
+        const jRow = await db.get<{ title: string; location: string; source: string; apply_url: string; job_description: string; required_skills: string }>(
+          `SELECT title, location, source, apply_url, job_description, required_skills FROM jobs WHERE id = ?`,
+          [jId]
+        );
+        if (!jRow) continue;
+        const titleLower = (jRow.title || '').toLowerCase();
+        const textHay = `${titleLower} ${(jRow.required_skills || '').toLowerCase()} ${(jRow.job_description || '').slice(0, 1200).toLowerCase()}`;
+
+        let preScore = 0;
+        for (const tok of candidateTokens.slice(0, 25)) {
+          if (titleLower.includes(tok)) preScore += 12;
+          else if (textHay.includes(tok)) preScore += 4;
+        }
+        // Bonus for Remote & Direct ATS
+        if (/remote|worldwide|anywhere/i.test(`${jRow.location || ''} ${titleLower}`)) preScore += 8;
+        if (['greenhouse', 'ashby', 'lever'].includes(jRow.source) || /greenhouse\.io|lever\.co|ashbyhq\.com/i.test(jRow.apply_url || '')) {
+          preScore += 5;
+        }
+        // Penalize mismatched extreme seniority or unrelated specialties unless present in candidate's resume
+        for (const mismatch of ['staff ', 'principal', 'director', 'vp ', 'manager', 'rust', 'ios ', 'android', 'embedded', 'firmware', 'cobol', 'sap ', 'salesforce', 'ruby on rails']) {
+          if (titleLower.includes(mismatch) && !resumeLower.includes(mismatch.trim())) {
+            preScore -= 25;
+          }
+        }
+        scoredCandidates.push({ id: jId, preScore });
+      }
+      scoredCandidates.sort((a, b) => b.preScore - a.preScore);
+
+      // Limit job batch size after smart skill-based pre-ranking
+      const rankedIds = scoredCandidates.map((c) => c.id);
+      const jobsToProcess = options.limitJobs ? rankedIds.slice(0, options.limitJobs) : rankedIds;
 
       // 4. RANKING, INSPECTION, RESUME TAILORING & DRAFTING/AUTO-APPLY PER JOB
       const rankingAgentWrapper = agentRegistry.get(AgentResponsibility.JOB_RANKING);
@@ -220,6 +273,7 @@ export class MultiAgentPipelineOrchestrator {
 
           const matchScore = rankData ? rankData.score : 65;
           const meetsThreshold = rankData ? rankData.meetsThreshold : true;
+          logger.info(`📊 Ranked "${job.title}" @ "${job.company_name}" (${job.source}): ${matchScore}% (threshold ${plan.autoRankThreshold || 55}% → ${meetsThreshold ? 'MATCH' : 'skip'})`);
 
           // 4b. Inspection (Headless verification)
           state = 'INSPECTING';

@@ -79,14 +79,17 @@ export async function executeDiscoveryRun(): Promise<{
           skipBrowserInspection: true,
         });
 
-        await db.run(
-          `INSERT INTO automation_settings (user_id, auto_apply_enabled, auto_apply_interval_hours, last_auto_apply_run_at)
-           VALUES (?, 1, ?, CURRENT_TIMESTAMP)
-           ON CONFLICT (user_id) DO UPDATE SET
-             last_auto_apply_run_at = CURRENT_TIMESTAMP,
-             updated_at = CURRENT_TIMESTAMP`,
-          [row.user_id, intervalHours]
-        );
+        // Only advance the cooldown timestamp when jobs were actually processed/applied, so empty runs retry cleanly
+        if (summary.draftsQueuedForReview > 0) {
+          await db.run(
+            `INSERT INTO automation_settings (user_id, auto_apply_enabled, auto_apply_interval_hours, last_auto_apply_run_at)
+             VALUES (?, 1, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT (user_id) DO UPDATE SET
+               last_auto_apply_run_at = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP`,
+            [row.user_id, intervalHours]
+          );
+        }
 
         usersProcessed++;
         jobsDiscovered += summary.jobsDiscovered;
