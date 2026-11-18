@@ -54,8 +54,46 @@ export const ResumeBuilder: React.FC = () => {
     try {
       setLoading(true);
       const res = await client.get('/resumes');
-      if (res.data && res.data.builder_data) {
-        setData(res.data.builder_data);
+      const raw = res.data?.builder_data;
+      if (raw) {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        const contact = parsed.contact || {};
+        const rawExp = Array.isArray(parsed.experience)
+          ? parsed.experience
+          : Array.isArray(parsed.experiences)
+          ? parsed.experiences
+          : [];
+        const rawEdu = Array.isArray(parsed.education) ? parsed.education : [];
+        const rawSkills = Array.isArray(parsed.skills)
+          ? parsed.skills.map((s: any) => (typeof s === 'string' ? s : s.items?.join(', ') || s.name || '')).filter(Boolean).join(', ')
+          : typeof parsed.skills === 'string'
+          ? parsed.skills
+          : '';
+
+        setData({
+          fullName: parsed.fullName || contact.fullName || parsed.name || '',
+          email: parsed.email || contact.email || '',
+          phone: parsed.phone || contact.phone || '',
+          linkedin: parsed.linkedin || contact.linkedin || contact.portfolio || '',
+          summary: parsed.summary || '',
+          skills: rawSkills,
+          experience: rawExp.map((exp: any, idx: number) => ({
+            id: exp.id || `exp-${idx}`,
+            company: exp.company || '',
+            position: exp.position || exp.role || exp.title || '',
+            startDate: exp.startDate || exp.start || '',
+            endDate: exp.endDate || exp.end || '',
+            description: Array.isArray(exp.bullets)
+              ? exp.bullets.join('\n')
+              : exp.description || '',
+          })),
+          education: rawEdu.map((edu: any, idx: number) => ({
+            id: edu.id || `edu-${idx}`,
+            institution: edu.institution || edu.school || '',
+            degree: edu.degree || '',
+            year: edu.year || edu.graduationDate || edu.dates || '',
+          })),
+        });
       }
       setLoading(false);
     } catch (err) {

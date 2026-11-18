@@ -5,6 +5,12 @@ import { Search, SlidersHorizontal, MapPin, Clock, Home, Building } from 'lucide
 
 export const JobsTable: React.FC = () => {
   const { jobs, loading, fetchJobs, searchJobs } = useJobs();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
+  const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
+  const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
+  const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
+
   const rawJobs = Array.isArray(jobs) ? jobs : (jobs && Array.isArray((jobs as any).jobs) ? (jobs as any).jobs : []);
   const safeJobs = rawJobs.filter((j: any) => {
     const score = j.match_score || 85;
@@ -12,11 +18,6 @@ export const JobsTable: React.FC = () => {
     if (activeTab === 'matched' && score < 80) return false;
     return true;
   });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
-  const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
-  const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
-  const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
 
   useEffect(() => {
     fetchJobs();
