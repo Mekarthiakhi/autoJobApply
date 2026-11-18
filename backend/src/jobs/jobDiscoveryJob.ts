@@ -22,7 +22,7 @@ export async function executeDiscoveryRun(): Promise<{
 
   try {
     const db = await getDatabase();
-    // Fetch every user who has uploaded a resume along with their custom auto-apply schedule
+    // Fetch every real user who has uploaded a resume along with their custom auto-apply schedule
     const users = await db.all<
       Array<{
         user_id: string;
@@ -36,8 +36,10 @@ export async function executeDiscoveryRun(): Promise<{
               ast.auto_apply_interval_hours,
               ast.last_auto_apply_run_at
        FROM resumes r
+       JOIN users u ON u.id = r.user_id
        LEFT JOIN automation_settings ast ON ast.user_id = r.user_id
-       WHERE r.text_content IS NOT NULL AND LENGTH(r.text_content) > 20`
+       WHERE r.text_content IS NOT NULL AND LENGTH(r.text_content) > 20
+         AND LOWER(u.email) NOT LIKE '%@example.com'`
     );
 
     const nowMs = Date.now();
@@ -133,6 +135,11 @@ export function startJobDiscoveryJob() {
   cron.schedule(schedule, async () => {
     await executeDiscoveryRun();
   });
+
+  // Also run one startup check 10s after boot for any due real users (strictly honoring each user's 1–5h interval)
+  setTimeout(() => {
+    executeDiscoveryRun().catch((err) => logger.error('Startup auto-apply sweep failed', err));
+  }, 10000);
 
   logger.info('✅ Customizable Auto-Apply cron scheduler started (supports 1h–5h user-defined gaps)');
 }
