@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { createRequire } from 'module';
+import fs from 'fs';
+import path from 'path';
 const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>;
 import { resumeService } from '../services/resumeService.js';
@@ -20,8 +22,20 @@ export async function uploadResume(req: Request, res: Response) {
 
     const fileBuffer = request.file.buffer;
     const fileName = request.file.originalname;
-    
-    const filePath = `uploads/${userId}-${Date.now()}-${fileName}`;
+
+    // Persist uploaded PDF onto the persistent data volume so ATS submissions attach the candidate's real PDF
+    const dbBaseDir = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : process.cwd();
+    const uploadsDir = path.join(dbBaseDir, 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    const filePath = path.join(uploadsDir, `${userId}-${Date.now()}-${safeFileName}`);
+    try {
+      fs.writeFileSync(filePath, fileBuffer);
+    } catch (writeErr) {
+      console.warn('Could not persist resume file to disk:', writeErr);
+    }
 
     let textContent = '';
     

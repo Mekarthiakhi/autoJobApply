@@ -151,18 +151,38 @@ async function safeScreenshot(page: Page, applicationId: string): Promise<{ file
   }
 }
 
-function prepareUploadableResumeFile(applicationId: string, candidate: SubmissionCandidateInfo): string | null {
+async function prepareUploadableResumePdf(
+  browser: any,
+  applicationId: string,
+  candidate: SubmissionCandidateInfo
+): Promise<string | null> {
   if (candidate.resumeFilePath && fs.existsSync(candidate.resumeFilePath)) {
     return candidate.resumeFilePath;
   }
+  // Generate a genuine ATS-compatible PDF using Playwright Chromium so Greenhouse/Lever/Ashby accept it cleanly
   try {
     const exportDir = env.EXPORT_DIR || path.resolve(process.cwd(), 'exports');
     ensureDir(exportDir);
     const safeName = (candidate.fullName || 'Resume').replace(/[^a-zA-Z0-9]+/g, '_');
-    const txtPath = path.join(exportDir, `${safeName}_Tailored_${applicationId.slice(0, 8)}.txt`);
-    fs.writeFileSync(txtPath, candidate.resumeText || 'Resume', 'utf-8');
-    return txtPath;
-  } catch {
+    const pdfPath = path.join(exportDir, `${safeName}_Tailored_${applicationId.slice(0, 8)}.pdf`);
+    const escapedText = (candidate.resumeText || 'Resume')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const pdfPage = await browser.newPage();
+    await pdfPage.setContent(
+      `<!doctype html><html><head><meta charset="utf-8"><style>
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #111827; padding: 28px 34px; }
+        h1 { font-size: 16pt; margin: 0 0 6px; color: #111827; }
+        pre { white-space: pre-wrap; font-family: inherit; margin: 0; }
+      </style></head><body><h1>${candidate.fullName || 'Candidate'}</h1><pre>${escapedText.slice(0, 12000)}</pre></body></html>`,
+      { waitUntil: 'load' }
+    );
+    await pdfPage.pdf({ path: pdfPath, format: 'A4', printBackground: true });
+    await pdfPage.close().catch(() => {});
+    return pdfPath;
+  } catch (err: any) {
+    logger.warn('Failed to render tailored PDF via Playwright', { error: err?.message });
     return null;
   }
 }
@@ -344,11 +364,30 @@ export class ExternalApplicationSubmitter {
         };
       }
 
-      // Step 2c: If on a job listing page without an email input yet, try clicking 1 "Apply" link/button to reach the actual ATS form
-      let hasEmailInput = (await page.locator('input[type="email"]:visible, input[name*="email" i]:visible').count().catch(() => 0)) > 0;
+      // Step 2c: If on an aggregator or job overview page, try following a direct ATS link or "Apply" button to reach the actual form
+      let hasEmailInput = (await page.locator('input[type="email"]:visible, input[name*="email" i]:visible, #email:visible').count().catch(() => 0)) > 0;
+      if (!hasEmailInput) {
+        // First look for an embedded direct ATS link (Greenhouse, Lever, Ashby, Workable)
+        const directAtsLink = page
+          .locator('a[href*="greenhouse.io"], a[href*="lever.co"], a[href*="ashbyhq.com"], a[href*="workable.com"]')
+          .first();
+        const directHref = await directAtsLink.getAttribute('href').catch(() => null);
+        if (directHref && directHref.startsWith('http')) {
+          try {
+            await page.goto(directHref, { waitUntil: 'domcontentloaded', timeout: 12000 });
+            await page.waitForTimeout(1500);
+            currentUrl = page.url();
+            atsPlatform = detectAtsPlatform(currentUrl);
+          } catch {
+            // Stay on current page
+          }
+        }
+      }
+
+      hasEmailInput = (await page.locator('input[type="email"]:visible, input[name*="email" i]:visible, #email:visible').count().catch(() => 0)) > 0;
       if (!hasEmailInput) {
         const applyTrigger = page
-          .locator('a:has-text("Apply for this job"), a:has-text("Apply now"), button:has-text("Apply for this job"), button:has-text("Apply now")')
+          .locator('a:has-text("Apply for this job"), a:has-text("Apply for this Role"), a:has-text("Apply now"), button:has-text("Apply for this job"), button:has-text("Apply now"), a[href*="/application"], a[href*="/apply"]')
           .first();
         if (await applyTrigger.isVisible().catch(() => false)) {
           try {
@@ -408,7 +447,7 @@ export class ExternalApplicationSubmitter {
       const emailField = page.locator('input[type="email"]:visible, input[name*="email" i]:visible, input[id*="email" i]:visible').first();
       hasEmailInput = await emailField.isVisible().catch(() => false);
       const submitBtn = page
-        .locator('button[type="submit"]:visible, input[type="submit"]:visible, button:has-text("Submit application"):visible, button:has-text("Submit Application"):visible')
+        .locator('#submit_app:visible, button[type="submit"]:visible, input[type="submit"]:visible, button:has-text("Submit application"):visible, button:has-text("Submit Application"):visible')
         .first();
       const hasSubmitBtn = await submitBtn.isVisible().catch(() => false);
 
@@ -441,22 +480,22 @@ export class ExternalApplicationSubmitter {
         }
       };
 
-      await fillIfVisible('input[name="first_name" i], input[id*="first_name" i], input[placeholder*="First name" i]', contacts.firstName);
-      await fillIfVisible('input[name="last_name" i], input[id*="last_name" i], input[placeholder*="Last name" i]', contacts.lastName);
-      await fillIfVisible('input[name="name" i], input[id="name" i], input[placeholder*="Full name" i]', contacts.fullName);
+      await fillIfVisible('#first_name, input[name="first_name" i], input[id*="first_name" i], input[placeholder*="First name" i]', contacts.firstName);
+      await fillIfVisible('#last_name, input[name="last_name" i], input[id*="last_name" i], input[placeholder*="Last name" i]', contacts.lastName);
+      await fillIfVisible('input[name="_systemfield_name"], input[name="name" i], input[id="name" i], input[placeholder*="Full name" i]', contacts.fullName);
       await emailField.fill(contacts.email).catch(() => {});
-      await fillIfVisible('input[type="tel"], input[name*="phone" i], input[id*="phone" i]', contacts.phone);
-      await fillIfVisible('input[name*="linkedin" i], input[placeholder*="LinkedIn" i]', contacts.linkedin);
-      await fillIfVisible('input[name*="github" i], input[placeholder*="GitHub" i]', contacts.github);
+      await fillIfVisible('#phone, input[type="tel"], input[name*="phone" i], input[id*="phone" i]', contacts.phone);
+      await fillIfVisible('input[name="urls[LinkedIn]"], input[name*="linkedin" i], input[placeholder*="LinkedIn" i]', contacts.linkedin);
+      await fillIfVisible('input[name="urls[GitHub]"], input[name*="github" i], input[placeholder*="GitHub" i]', contacts.github);
       await fillIfVisible('textarea[name*="cover" i], textarea[id*="cover" i], textarea[name*="comments" i]', coverLetterText.slice(0, 2500));
 
-      // Upload real resume file if <input type="file"> exists
+      // Upload real PDF resume file if <input type="file"> exists (ATS portals require .pdf)
       const fileInput = page.locator('input[type="file"]').first();
       if ((await fileInput.count().catch(() => 0)) > 0) {
-        const resumeFile = prepareUploadableResumeFile(applicationId, candidate);
+        const resumeFile = await prepareUploadableResumePdf(browser, applicationId, candidate);
         if (resumeFile) {
           await fileInput.setInputFiles(resumeFile).catch(() => {});
-          await page.waitForTimeout(800);
+          await page.waitForTimeout(1000);
         }
       }
 

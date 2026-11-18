@@ -72,6 +72,9 @@ export function isRelevantEngineeringTitle(title: string): boolean {
 export class MultiPortalAggregator {
   getPortalStatuses(): PortalStatus[] {
     return [
+      { id: 'greenhouse', name: 'Greenhouse Direct ATS', coverage: 'Direct Company Forms (Vercel, GitLab, Cloudflare, Netlify...)', status: 'active', requiresKey: false },
+      { id: 'ashby', name: 'Ashby Direct ATS', coverage: 'Direct Remote Startup Forms (Linear, Supabase, PostHog, Resend...)', status: 'active', requiresKey: false },
+      { id: 'lever', name: 'Lever Direct ATS', coverage: 'Direct Company Forms (Spotify, Ro...)', status: 'active', requiresKey: false },
       { id: 'remotive', name: 'Remotive', coverage: 'Global Remote Tech', status: 'active', requiresKey: false },
       { id: 'remoteok', name: 'RemoteOK', coverage: 'Global Remote Dev', status: 'active', requiresKey: false },
       { id: 'jobicy', name: 'Jobicy', coverage: 'Remote Engineering', status: 'active', requiresKey: false },
@@ -127,8 +130,13 @@ export class MultiPortalAggregator {
       ])
     );
 
-    // Order prioritizes JSearch (LinkedIn/Indeed/Shine/Naukri India) & Jooble first, then all 5 global tech portals
-    const tasks: Array<{ name: string; promise: Promise<DiscoveredJobRecord[]> }> = [];
+    // Order prioritizes Direct Company ATS boards (Greenhouse, Ashby, Lever) first for direct external form submission,
+    // followed by JSearch, Jooble, and all 5 global remote tech portals
+    const tasks: Array<{ name: string; promise: Promise<DiscoveredJobRecord[]> }> = [
+      { name: 'greenhouse', promise: this.fetchGreenhouseDirect(searchTerms, limit) },
+      { name: 'ashby', promise: this.fetchAshbyDirect(searchTerms, limit) },
+      { name: 'lever', promise: this.fetchLeverDirect(searchTerms, Math.min(limit, 4)) },
+    ];
     if (process.env.RAPIDAPI_KEY) {
       tasks.push({ name: 'jsearch', promise: this.fetchJSearch(role, location, limit) });
     }
@@ -139,11 +147,11 @@ export class MultiPortalAggregator {
       tasks.push({ name: 'adzuna', promise: this.fetchAdzuna(role, location, limit) });
     }
     tasks.push(
+      { name: 'himalayas', promise: this.fetchHimalayas(searchTerms, limit) },
       { name: 'remotive', promise: this.fetchRemotive(searchTerms, limit) },
       { name: 'remoteok', promise: this.fetchRemoteOK(searchTerms, limit) },
       { name: 'jobicy', promise: this.fetchJobicy('react', limit) },
-      { name: 'arbeitnow', promise: this.fetchArbeitnow(searchTerms, limit) },
-      { name: 'himalayas', promise: this.fetchHimalayas(searchTerms, limit) }
+      { name: 'arbeitnow', promise: this.fetchArbeitnow(searchTerms, limit) }
     );
 
     const results = await Promise.allSettled(tasks.map((t) => t.promise));
@@ -177,13 +185,19 @@ export class MultiPortalAggregator {
       round++;
     }
 
+    const isDirectAtsJob = (j: DiscoveredJobRecord) =>
+      ['greenhouse', 'ashby', 'lever'].includes(j.source) ||
+      /greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|^mailto:/i.test(j.apply_url || '');
+
     const isRemoteJob = (j: DiscoveredJobRecord) =>
       /remote|worldwide|anywhere|work from home|wfh/i.test(`${j.location} ${j.title}`) ||
       ['remotive', 'remoteok', 'jobicy', 'himalayas'].includes(j.source);
 
     const allJobs = [
-      ...interleaved.filter(isRemoteJob),
-      ...interleaved.filter((j) => !isRemoteJob(j)),
+      ...interleaved.filter((j) => isDirectAtsJob(j) && isRemoteJob(j)),
+      ...interleaved.filter((j) => isDirectAtsJob(j) && !isRemoteJob(j)),
+      ...interleaved.filter((j) => !isDirectAtsJob(j) && isRemoteJob(j)),
+      ...interleaved.filter((j) => !isDirectAtsJob(j) && !isRemoteJob(j)),
     ];
 
     logger.info('Multi-portal job discovery finished', {
@@ -459,6 +473,149 @@ export class MultiPortalAggregator {
         posted_date: j.updated ? new Date(j.updated) : new Date(),
       };
     });
+  }
+
+  // Official Public Greenhouse Job Board API (Direct company ATS application forms)
+  private async fetchGreenhouseDirect(terms: string[], limit: number): Promise<DiscoveredJobRecord[]> {
+    const boards = [
+      { slug: 'vercel', name: 'Vercel' },
+      { slug: 'gitlab', name: 'GitLab' },
+      { slug: 'netlify', name: 'Netlify' },
+      { slug: 'algolia', name: 'Algolia' },
+      { slug: 'launchdarkly', name: 'LaunchDarkly' },
+      { slug: 'circleci', name: 'CircleCI' },
+      { slug: 'cloudflare', name: 'Cloudflare' },
+      { slug: 'twilio', name: 'Twilio' },
+    ];
+    const collected: DiscoveredJobRecord[] = [];
+    const results = await Promise.allSettled(
+      boards.map(async (b) => {
+        const res = await axios.get(`https://boards-api.greenhouse.io/v1/boards/${b.slug}/jobs?content=true`, {
+          timeout: 7000,
+          headers: { 'User-Agent': 'AutoJobApply/1.0' },
+        });
+        const jobs = Array.isArray(res.data?.jobs) ? res.data.jobs : [];
+        return jobs
+          .filter((j: any) => {
+            const title = j.title || '';
+            const loc = j.location?.name || '';
+            return (
+              isRelevantEngineeringTitle(title) &&
+              (/remote|india|anywhere|global/i.test(loc) || matchesSearchTerms(`${title} ${loc}`, terms))
+            );
+          })
+          .slice(0, 2)
+          .map((j: any) => ({
+            title: j.title,
+            company_name: b.name,
+            location: j.location?.name || 'Remote',
+            salary: 'Not specified',
+            experience_level: 'Full-Time',
+            required_skills: [],
+            job_description: stripHtml(j.content || j.title || ''),
+            apply_url: j.absolute_url || `https://boards.greenhouse.io/${b.slug}/jobs/${j.id}`,
+            source: 'greenhouse',
+            external_id: `greenhouse-${b.slug}-${j.id}`,
+            status: 'active',
+            posted_date: j.updated_at ? new Date(j.updated_at) : new Date(),
+          }));
+      })
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') collected.push(...r.value);
+    }
+    return collected.slice(0, limit);
+  }
+
+  // Official Public Ashby Job Board API (Direct remote-first company ATS forms)
+  private async fetchAshbyDirect(terms: string[], limit: number): Promise<DiscoveredJobRecord[]> {
+    const boards = [
+      { slug: 'linear', name: 'Linear' },
+      { slug: 'supabase', name: 'Supabase' },
+      { slug: 'posthog', name: 'PostHog' },
+      { slug: 'resend', name: 'Resend' },
+      { slug: 'vanta', name: 'Vanta' },
+      { slug: 'modal', name: 'Modal' },
+    ];
+    const collected: DiscoveredJobRecord[] = [];
+    const results = await Promise.allSettled(
+      boards.map(async (b) => {
+        const res = await axios.get(`https://api.ashbyhq.com/posting-api/job-board/${b.slug}`, {
+          timeout: 7000,
+          headers: { 'User-Agent': 'AutoJobApply/1.0' },
+        });
+        const jobs = Array.isArray(res.data?.jobs) ? res.data.jobs : [];
+        return jobs
+          .filter((j: any) => {
+            const title = j.title || '';
+            const loc = `${j.location || ''} ${j.isRemote ? 'Remote' : ''}`;
+            return isRelevantEngineeringTitle(title) && (j.isRemote || matchesSearchTerms(`${title} ${loc}`, terms));
+          })
+          .slice(0, 2)
+          .map((j: any) => ({
+            title: j.title,
+            company_name: b.name,
+            location: j.isRemote ? `${j.location || 'Remote'} (Remote)` : (j.location || 'Remote'),
+            salary: 'Not specified',
+            experience_level: j.employmentType || 'Full-Time',
+            required_skills: [],
+            job_description: stripHtml(j.descriptionPlain || j.descriptionHtml || j.title || ''),
+            apply_url: j.applyUrl || j.jobUrl || `https://jobs.ashbyhq.com/${b.slug}/${j.id}/application`,
+            source: 'ashby',
+            external_id: `ashby-${b.slug}-${j.id}`,
+            status: 'active',
+            posted_date: j.publishedAt ? new Date(j.publishedAt) : new Date(),
+          }));
+      })
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') collected.push(...r.value);
+    }
+    return collected.slice(0, limit);
+  }
+
+  // Official Public Lever Postings API (Direct company ATS forms)
+  private async fetchLeverDirect(terms: string[], limit: number): Promise<DiscoveredJobRecord[]> {
+    const boards = [
+      { slug: 'spotify', name: 'Spotify' },
+      { slug: 'ro', name: 'Ro' },
+      { slug: 'rigetti', name: 'Rigetti' },
+    ];
+    const collected: DiscoveredJobRecord[] = [];
+    const results = await Promise.allSettled(
+      boards.map(async (b) => {
+        const res = await axios.get(`https://api.lever.co/v0/postings/${b.slug}?mode=json`, {
+          timeout: 7000,
+          headers: { 'User-Agent': 'AutoJobApply/1.0' },
+        });
+        const jobs = Array.isArray(res.data) ? res.data : [];
+        return jobs
+          .filter((j: any) => {
+            const title = j.text || '';
+            const loc = j.categories?.location || '';
+            return isRelevantEngineeringTitle(title) && matchesSearchTerms(`${title} ${loc} ${j.descriptionPlain || ''}`, terms);
+          })
+          .slice(0, 2)
+          .map((j: any) => ({
+            title: j.text,
+            company_name: b.name,
+            location: j.categories?.location || (j.workplaceType === 'remote' ? 'Remote' : 'Remote / Hybrid'),
+            salary: 'Not specified',
+            experience_level: j.categories?.commitment || 'Full-Time',
+            required_skills: [],
+            job_description: stripHtml(j.descriptionPlain || j.description || j.text || ''),
+            apply_url: j.applyUrl || (j.hostedUrl ? `${j.hostedUrl}/apply` : ''),
+            source: 'lever',
+            external_id: `lever-${b.slug}-${j.id}`,
+            status: 'active',
+            posted_date: j.createdAt ? new Date(j.createdAt) : new Date(),
+          }));
+      })
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') collected.push(...r.value);
+    }
+    return collected.slice(0, limit);
   }
 }
 
