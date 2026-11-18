@@ -291,16 +291,11 @@ export async function sendTestReport(req: Request, res: Response) {
       if (resRow?.text_content) resolvedPhone = extractMobilePhoneFromResume(resRow.text_content) || '';
     }
 
-    const reportItems = (apps.length > 0 ? apps.slice(0, 8) : [
-      {
-        job_title: 'Test Verification Item (Run AI Discovery to populate live roles)',
-        company_name: 'AutoApply AI',
-        match_score: 100,
-        external_status: 'AI_PREPARED',
-        apply_url: process.env.FRONTEND_URL || 'https://autojobapply-production-69da9ff5.up.railway.app',
-        notes: 'This confirms your Email & WhatsApp notification channels are connected.',
-      },
-    ]).map((a: any) => {
+    if (!apps || apps.length === 0) {
+      throw new AppError(400, 'No real applications tracked yet. Run job discovery first to send a live report.');
+    }
+
+    const reportItems = apps.slice(0, 10).map((a: any) => {
       let proof: any = {};
       try { if (a.submission_proof) proof = JSON.parse(a.submission_proof); } catch {}
       return {

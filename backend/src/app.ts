@@ -221,6 +221,22 @@ async function startServer() {
           }
         }
       }
+      // Purge any temporary synthetic/test accounts (@example.com, verify-*, etc.) so production DB holds ONLY real user data
+      const purgeResult = await sql.run(
+        `DELETE FROM users
+         WHERE LOWER(email) LIKE '%@example.com'
+            OR LOWER(email) LIKE '%@test.com'
+            OR LOWER(email) LIKE 'verify-%'
+            OR LOWER(email) LIKE 'oss-verify-%'
+            OR LOWER(email) LIKE 'cron-verify-%'
+            OR LOWER(email) LIKE 'active-verify-%'
+            OR LOWER(email) LIKE 'check-ats-%'`
+      );
+      if (purgeResult.changes && purgeResult.changes > 0) {
+        logger.info(`🧹 Purged ${purgeResult.changes} temporary test account(s) from database (real data only)`);
+      }
+      const realUserCount = await sql.get<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM users`);
+      logger.info(`👤 Production database verified: ${realUserCount?.cnt || 0} real user account(s) active`);
       // Also clean up static demo-seeded, .example placeholder jobs, and non-engineering roles fetched prior to title filtering
       await sql.run(
         `DELETE FROM jobs WHERE id IN ('job-react-senior-apex', 'job-react-frontend-techcorp', 'job-ui-react-fintech')

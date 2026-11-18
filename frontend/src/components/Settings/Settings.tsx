@@ -148,17 +148,17 @@ export const Settings: React.FC = () => {
       const emailOk = res.data?.email?.sent;
       const waOk = res.data?.whatsapp?.sent;
       if (emailOk && waOk) {
-        toast.success(`Test report delivered to ${res.data.email.to} AND WhatsApp (${res.data.whatsapp.phone})!`);
+        toast.success(`Live report delivered to ${res.data.email.to} AND WhatsApp (${res.data.whatsapp.phone})!`);
       } else if (emailOk) {
-        toast.success(`Test report emailed to ${res.data.email.to}!${res.data?.whatsapp?.phone ? ` Detected WhatsApp: ${res.data.whatsapp.phone}` : ''}`);
+        toast.success(`Live report emailed to ${res.data.email.to}!${res.data?.whatsapp?.phone ? ` Detected WhatsApp: ${res.data.whatsapp.phone}` : ''}`);
         if (!waOk && res.data?.whatsapp?.whatsappShareUrl) {
           window.open(res.data.whatsapp.whatsappShareUrl, '_blank', 'noopener,noreferrer');
         }
       } else {
-        toast.error(res.data?.email?.error || 'Could not deliver test email');
+        toast.error(res.data?.email?.error || 'Could not deliver report email');
       }
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to send test report');
+      toast.error(err?.response?.data?.error || 'Failed to send live report');
     } finally {
       setSendingTest(false);
     }
@@ -463,7 +463,7 @@ export const Settings: React.FC = () => {
         </button>
         <button className="neumo-btn" onClick={handleSendTestReport} disabled={sendingTest}>
           <Send size={14} />
-          {sendingTest ? 'Sending Test...' : 'Send Test Report (Email + WhatsApp)'}
+          {sendingTest ? 'Sending Report...' : 'Send Live Report (Email + WhatsApp)'}
         </button>
       </div>
     </div>

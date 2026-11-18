@@ -33,6 +33,12 @@ interface MailPayload {
  * 3. Resend API (RESEND_API_KEY) — works for any address once a custom domain is verified
  */
 export async function sendMail({ to, subject, html, replyTo }: MailPayload): Promise<EmailSendResult> {
+  // Strictly block synthetic test domains from ever triggering real outbound emails
+  const lowerTo = (to || '').trim().toLowerCase();
+  if (!lowerTo || lowerTo.endsWith('@example.com') || lowerTo.endsWith('@test.com') || lowerTo.endsWith('.invalid')) {
+    return { sent: false, error: 'Refused to send email to non-real test address.' };
+  }
+
   // 1. Brevo HTTP API (HTTPS port 443, sends to any recipient without needing a custom domain)
   const brevoKey = process.env.BREVO_API_KEY || env.BREVO_API_KEY;
   if (brevoKey) {
