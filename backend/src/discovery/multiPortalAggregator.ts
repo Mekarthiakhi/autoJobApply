@@ -278,18 +278,29 @@ export class MultiPortalAggregator {
     }));
   }
 
-  // Official LinkedIn / Indeed / Glassdoor / ZipRecruiter Aggregator via RapidAPI JSearch
+  // Official LinkedIn / Indeed / Glassdoor / Shine / Naukri Aggregator via RapidAPI JSearch v2
   private async fetchJSearch(role: string, location: string, limit: number): Promise<DiscoveredJobRecord[]> {
-    const q = location && location.toLowerCase() !== 'remote' ? `${role} in ${location}` : `${role} remote`;
-    const res = await axios.get('https://jsearch.p.rapidapi.com/search', {
-      params: { query: q, page: '1', num_pages: '1' },
+    const cleanLoc = location && location.toLowerCase() !== 'remote' ? location : 'India';
+    const isIndia = /india|hyderabad|bangalore|bengaluru|pune|mumbai|chennai|delhi|noida|gurgaon/i.test(cleanLoc);
+    const q = `${role} in ${cleanLoc}`;
+    const res = await axios.get('https://jsearch.p.rapidapi.com/search-v2', {
+      params: {
+        query: q,
+        num_pages: '1',
+        country: isIndia ? 'in' : 'us',
+        date_posted: 'all',
+      },
       headers: {
-        'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || '',
-        'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
+        'x-rapidapi-key': process.env.RAPIDAPI_KEY || '',
+        'x-rapidapi-host': 'jsearch.p.rapidapi.com',
       },
       timeout: 12000,
     });
-    const items = Array.isArray(res.data?.data) ? res.data.data : [];
+    const items = Array.isArray(res.data?.data?.jobs)
+      ? res.data.data.jobs
+      : Array.isArray(res.data?.data)
+      ? res.data.data
+      : [];
     return items.slice(0, limit).map((j: any) => {
       const publisher = (j.job_publisher || 'jsearch').toLowerCase();
       const source = publisher.includes('linkedin')
@@ -300,20 +311,23 @@ export class MultiPortalAggregator {
         ? 'glassdoor'
         : publisher.includes('naukri')
         ? 'naukri'
+        : publisher.includes('shine')
+        ? 'shine'
         : 'jsearch';
       return {
         title: j.job_title || role,
         company_name: j.employer_name || 'Unknown Company',
-        location: j.job_is_remote
-          ? `${j.job_city || j.job_country || 'Remote'} (Remote)`
-          : [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', ') || location,
-        salary: formatSalary(j.job_min_salary, j.job_max_salary, j.job_salary_currency),
+        location: j.job_location ||
+          (j.job_is_remote
+            ? `${j.job_city || j.job_country || 'Remote'} (Remote)`
+            : [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', ') || cleanLoc),
+        salary: j.job_salary_string || formatSalary(j.job_min_salary, j.job_max_salary, j.job_salary_currency),
         experience_level: j.job_employment_type || 'Full-Time',
         required_skills: Array.isArray(j.job_required_skills) ? j.job_required_skills : [],
         job_description: stripHtml(j.job_description || ''),
         apply_url: j.job_apply_link || j.job_google_link || '',
         source,
-        external_id: `${source}-${j.job_id}`,
+        external_id: `${source}-${j.job_uid || (j.job_id || Date.now()).toString().slice(0, 48)}`,
         status: 'active',
         posted_date: j.job_posted_at_datetime_utc ? new Date(j.job_posted_at_datetime_utc) : new Date(),
       };
@@ -350,29 +364,49 @@ export class MultiPortalAggregator {
     }));
   }
 
-  // Official Jooble API (aggregates Naukri, Indeed, Shine, LinkedIn across India & Global)
+  // Official Jooble API (aggregates Naukri, Indeed, Greenhouse, Lever, LinkedIn across India & Global)
   private async fetchJooble(role: string, location: string, limit: number): Promise<DiscoveredJobRecord[]> {
     const apiKey = process.env.JOOBLE_API_KEY || '';
-    const res = await axios.post(
-      `https://jooble.org/api/${apiKey}`,
-      { keywords: role, location: location || 'India' },
-      { timeout: 12000 }
-    );
-    const items = Array.isArray(res.data?.jobs) ? res.data.jobs : [];
-    return items.slice(0, limit).map((j: any) => ({
-      title: j.title || role,
-      company_name: j.company || 'Unknown Company',
-      location: j.location || location || 'India',
-      salary: j.salary || 'Not specified',
-      experience_level: j.type || 'Full-Time',
-      required_skills: [],
-      job_description: stripHtml(j.snippet || ''),
-      apply_url: j.link || '',
-      source: (j.source || 'jooble').toLowerCase().includes('naukri') ? 'naukri' : 'jooble',
-      external_id: `jooble-${j.id || Buffer.from(j.link || j.title).toString('base64').slice(0, 24)}`,
-      status: 'active',
-      posted_date: j.updated ? new Date(j.updated) : new Date(),
-    }));
+    const primaryKeyword = role.split(/\s+/)[0] || 'React';
+    let items: any[] = [];
+
+    for (const loc of [location || 'India', 'India', 'Remote']) {
+      const res = await axios.post(
+        `https://jooble.org/api/${apiKey}`,
+        { keywords: primaryKeyword, location: loc },
+        { timeout: 12000 }
+      );
+      const found = Array.isArray(res.data?.jobs) ? res.data.jobs : [];
+      if (found.length > 0) {
+        items = found;
+        break;
+      }
+    }
+
+    return items.slice(0, limit).map((j: any) => {
+      const rawSrc = (j.source || 'jooble').toLowerCase();
+      const source = rawSrc.includes('naukri')
+        ? 'naukri'
+        : rawSrc.includes('linkedin')
+        ? 'linkedin'
+        : rawSrc.includes('indeed')
+        ? 'indeed'
+        : 'jooble';
+      return {
+        title: j.title || role,
+        company_name: j.company || 'Unknown Company',
+        location: j.location || location || 'India',
+        salary: j.salary || 'Not specified',
+        experience_level: j.type || 'Full-Time',
+        required_skills: [],
+        job_description: stripHtml(j.snippet || ''),
+        apply_url: j.link || '',
+        source,
+        external_id: `jooble-${j.id || Buffer.from(j.link || j.title).toString('base64').slice(0, 24)}`,
+        status: 'active',
+        posted_date: j.updated ? new Date(j.updated) : new Date(),
+      };
+    });
   }
 }
 
