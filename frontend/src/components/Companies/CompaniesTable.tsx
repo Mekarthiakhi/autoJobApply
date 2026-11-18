@@ -29,6 +29,7 @@ const CompaniesTable: React.FC<CompaniesTableProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'fitScore' | 'roles' | 'name'>('fitScore');
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [showSortMenu, setShowSortMenu] = useState(false);
 
   const filteredCompanies = companies.filter(
     (company) =>
@@ -72,56 +73,61 @@ const CompaniesTable: React.FC<CompaniesTableProps> = ({
   return (
     <div className="space-y-6">
       {/* Search and Filter Bar */}
-      <div className="neumo-card p-4 flex flex-col md:flex-row gap-4">
+      <div className="neumo-card p-4 flex flex-col md:flex-row items-stretch md:items-center gap-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search companies by name or industry..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="neumo-input pl-10"
+            className="neumo-input"
+            style={{ paddingLeft: '38px' }}
           />
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
           <div className="relative">
-            <button className="neumo-btn inline-flex items-center gap-2 text-sm">
-              <span>Sort by</span>
-              <ChevronDown size={16} />
+            <button
+              type="button"
+              onClick={() => setShowSortMenu((v) => !v)}
+              className="neumo-btn"
+            >
+              <span>Sort: {sortBy === 'fitScore' ? 'Fit Score' : sortBy === 'roles' ? 'Open Roles' : 'Name'}</span>
+              <ChevronDown size={15} />
             </button>
-            <div className="absolute right-0 mt-2 w-40 neumo-card rounded-lg overflow-hidden shadow-lg z-10 hidden group-hover:block">
-              <button
-                onClick={() => setSortBy('fitScore')}
-                className={`w-full px-4 py-2 text-left text-sm font-medium hover:bg-accent-primary/10 ${
-                  sortBy === 'fitScore' ? 'bg-accent-primary/20 text-accent-primary' : 'text-gray-300'
-                }`}
-              >
-                Fit Score
-              </button>
-              <button
-                onClick={() => setSortBy('roles')}
-                className={`w-full px-4 py-2 text-left text-sm font-medium hover:bg-accent-primary/10 ${
-                  sortBy === 'roles' ? 'bg-accent-primary/20 text-accent-primary' : 'text-gray-300'
-                }`}
-              >
-                Open Roles
-              </button>
-              <button
-                onClick={() => setSortBy('name')}
-                className={`w-full px-4 py-2 text-left text-sm font-medium hover:bg-accent-primary/10 ${
-                  sortBy === 'name' ? 'bg-accent-primary/20 text-accent-primary' : 'text-gray-300'
-                }`}
-              >
-                Company Name
-              </button>
-            </div>
+            {showSortMenu && (
+              <div className="absolute right-0 mt-2 w-44 neumo-card rounded-xl overflow-hidden shadow-xl z-20 p-1">
+                <button
+                  type="button"
+                  onClick={() => { setSortBy('fitScore'); setShowSortMenu(false); }}
+                  className={`w-full px-3 py-2 rounded-lg text-left text-xs font-medium transition-colors ${
+                    sortBy === 'fitScore' ? 'bg-indigo-600/30 text-indigo-300' : 'text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Fit Score
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSortBy('roles'); setShowSortMenu(false); }}
+                  className={`w-full px-3 py-2 rounded-lg text-left text-xs font-medium transition-colors ${
+                    sortBy === 'roles' ? 'bg-indigo-600/30 text-indigo-300' : 'text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Open Roles
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSortBy('name'); setShowSortMenu(false); }}
+                  className={`w-full px-3 py-2 rounded-lg text-left text-xs font-medium transition-colors ${
+                    sortBy === 'name' ? 'bg-indigo-600/30 text-indigo-300' : 'text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Company Name
+                </button>
+              </div>
+            )}
           </div>
-
-          <button className="neumo-btn inline-flex items-center gap-2 text-sm">
-            <span>Filter</span>
-            <ChevronDown size={16} />
-          </button>
         </div>
       </div>
 

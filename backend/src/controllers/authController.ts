@@ -263,20 +263,35 @@ export async function getProfile(req: Request, res: Response) {
 
     const db = await getDatabase();
     const settings = await db.get(
-      `SELECT telegram_enabled, telegram_chat_id FROM automation_settings WHERE user_id = ?`,
+      `SELECT telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled FROM automation_settings WHERE user_id = ?`,
       [userId]
     );
+
+    let parsedLocs: string[] = ['Remote'];
+    if (user.preferred_locations) {
+      try {
+        const arr = typeof user.preferred_locations === 'string'
+          ? JSON.parse(user.preferred_locations)
+          : user.preferred_locations;
+        if (Array.isArray(arr) && arr.length > 0) parsedLocs = arr;
+      } catch {
+        const split = String(user.preferred_locations).split(',').map((s) => s.trim()).filter(Boolean);
+        if (split.length > 0) parsedLocs = split;
+      }
+    }
 
     res.json({
       id: user.id,
       email: user.email,
       fullName: user.full_name,
-      preferredLocations: user.preferred_locations,
+      preferredLocations: parsedLocs,
       employmentType: user.employment_type,
-      minMatchScore: user.min_match_score,
+      minMatchScore: user.min_match_score || 55,
       isVerified: user.is_verified,
       telegramEnabled: settings?.telegram_enabled === 1,
       telegramChatId: settings?.telegram_chat_id || '',
+      emailEnabled: settings ? settings.email_notifications === 1 : true,
+      autoApplyEnabled: settings ? settings.auto_apply_enabled !== 0 : true,
     });
   } catch (error) {
     if (error instanceof AppError) {
@@ -294,36 +309,48 @@ export async function updateProfile(req: Request, res: Response) {
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { preferredLocations, employmentType, minMatchScore, telegramEnabled, telegramChatId } = req.body;
+    const { preferredLocations, employmentType, minMatchScore, telegramEnabled, telegramChatId, emailEnabled, autoApplyEnabled } = req.body;
+
+    const locsJson = Array.isArray(preferredLocations)
+      ? JSON.stringify(preferredLocations)
+      : typeof preferredLocations === 'string'
+      ? preferredLocations
+      : JSON.stringify(['Remote']);
 
     const user = await userRepository.update(userId, {
-      preferred_locations: preferredLocations,
+      preferred_locations: locsJson,
       employment_type: employmentType,
       min_match_score: minMatchScore,
     } as any);
 
     const db = await getDatabase();
     const tEnabled = telegramEnabled ? 1 : 0;
+    const eEnabled = emailEnabled === false ? 0 : 1;
+    const aEnabled = autoApplyEnabled === false ? 0 : 1;
     
     await db.run(
-      `INSERT INTO automation_settings (user_id, telegram_enabled, telegram_chat_id)
-       VALUES (?, ?, ?)
+      `INSERT INTO automation_settings (user_id, telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT (user_id) DO UPDATE SET
          telegram_enabled = excluded.telegram_enabled,
          telegram_chat_id = excluded.telegram_chat_id,
+         email_notifications = excluded.email_notifications,
+         auto_apply_enabled = excluded.auto_apply_enabled,
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, tEnabled, telegramChatId || '']
+      [userId, tEnabled, telegramChatId || '', eEnabled, aEnabled]
     );
 
     res.json({
       id: user.id,
       email: user.email,
       fullName: user.full_name,
-      preferredLocations: user.preferred_locations,
+      preferredLocations: Array.isArray(preferredLocations) ? preferredLocations : ['Remote'],
       employmentType: user.employment_type,
       minMatchScore: user.min_match_score,
-      telegramEnabled: telegramEnabled || false,
+      telegramEnabled: Boolean(tEnabled),
       telegramChatId: telegramChatId || '',
+      emailEnabled: Boolean(eEnabled),
+      autoApplyEnabled: Boolean(aEnabled),
     });
   } catch (error) {
     if (error instanceof AppError) {

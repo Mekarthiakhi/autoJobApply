@@ -5,14 +5,14 @@ import { useToast } from '../../context/ToastContext';
 
 export const Settings: React.FC = () => {
   const toast = useToast();
-  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
+  const [preferredLocations, setPreferredLocations] = useState<string[]>(['Remote']);
   const [newLocation, setNewLocation] = useState('');
   const [isAddingLocation, setIsAddingLocation] = useState(false);
-  const [minMatchScore, setMinMatchScore] = useState(80);
+  const [minMatchScore, setMinMatchScore] = useState(55);
   
   const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [emailEnabled, setEmailEnabled] = useState(false);
-  const [autoApplyEnabled, setAutoApplyEnabled] = useState(false);
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [autoApplyEnabled, setAutoApplyEnabled] = useState(true);
 
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -214,8 +214,8 @@ export const Settings: React.FC = () => {
           
           <div className="toggle-row">
             <div className="toggle-info">
-              <div className="toggle-name">Auto-apply</div>
-              <div className="toggle-desc">Apply automatically above 90% match</div>
+              <div className="toggle-name">Hourly Auto-Apply (Default ON)</div>
+              <div className="toggle-desc">Runs every 1 hour · discovers Remote-first roles, tailors resume &amp; applies automatically</div>
             </div>
             <div className={`toggle ${autoApplyEnabled ? 'on' : ''}`} onClick={() => setAutoApplyEnabled(!autoApplyEnabled)}>
               <div className="toggle-dot"></div>

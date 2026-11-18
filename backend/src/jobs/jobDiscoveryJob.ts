@@ -1,61 +1,54 @@
 import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
-import { savedSearchRepository } from '../repositories/savedSearchRepository.js';
-import { jobDiscoveryService } from '../services/jobDiscoveryService.js';
+import { getDatabase } from '../config/database.js';
+import { multiAgentPipelineOrchestrator } from '../agents/orchestratorPipeline.js';
 import { jobLifecycleManager } from '../discovery/jobLifecycleManager.js';
 
-export async function executeDiscoveryRun(): Promise<{ newJobsFound: number; staleCount: number; expiredCount: number }> {
-  logger.info('🔍 [JobDiscovery] Starting automated discovery run...');
-  let totalNewJobs = 0;
+export async function executeDiscoveryRun(): Promise<{ usersProcessed: number; jobsDiscovered: number; newJobsFound: number; applicationsProcessed: number; staleCount: number; expiredCount: number }> {
+  logger.info('⏰ [HourlyAutoApply] Starting scheduled 1-hour multi-agent discovery & auto-apply run...');
+  let usersProcessed = 0;
+  let jobsDiscovered = 0;
+  let applicationsProcessed = 0;
 
   try {
-    // 1. Fetch active saved searches
-    const savedSearches = await savedSearchRepository.findAllActive();
-    const searchTerms: Array<{ keywords: string[]; location: string }> = [];
+    const db = await getDatabase();
+    // Run autonomous pipeline for every user who has uploaded a resume
+    const users = await db.all<Array<{ user_id: string }>>(
+      `SELECT DISTINCT user_id FROM resumes WHERE text_content IS NOT NULL AND LENGTH(text_content) > 20`
+    );
 
-    if (savedSearches.length > 0) {
-      for (const s of savedSearches) {
-        searchTerms.push({
-          keywords: [s.keyword],
-          location: s.location || 'Remote',
-        });
-      }
-    } else {
-      // Default fallback search terms if no user saved searches exist
-      searchTerms.push({
-        keywords: ['Full Stack Developer', 'Software Engineer', 'Frontend Developer'],
-        location: 'Remote',
-      });
-    }
-
-    // 2. Discover jobs for each search term
-    for (const term of searchTerms) {
+    for (const row of users || []) {
       try {
-        const count = await jobDiscoveryService.discoverJobs(term.keywords);
-        totalNewJobs += count;
-      } catch (err: any) {
-        logger.warn(`Failed discovery for search term: ${term.keywords.join(', ')}`, { error: err.message });
+        const summary = await multiAgentPipelineOrchestrator.runPipeline(row.user_id, {
+          limitJobs: 10,
+          skipBrowserInspection: true,
+        });
+        usersProcessed++;
+        jobsDiscovered += summary.jobsDiscovered;
+        applicationsProcessed += summary.draftsQueuedForReview;
+      } catch (userErr: any) {
+        logger.error(`Hourly auto-apply pipeline failed for user ${row.user_id}`, userErr);
       }
     }
 
-    // 3. Stale & Expired job maintenance sweep
     const { staleCount, expiredCount } = await jobLifecycleManager.sweepJobLifecycle(14, 30);
 
-    logger.info(`✨ [JobDiscovery] Discovery run complete: ${totalNewJobs} new jobs added, ${staleCount} marked stale, ${expiredCount} expired.`);
-    return { newJobsFound: totalNewJobs, staleCount, expiredCount };
+    logger.info(`✨ [HourlyAutoApply] Complete: users=${usersProcessed}, discovered=${jobsDiscovered}, applied/queued=${applicationsProcessed}`);
+    return { usersProcessed, jobsDiscovered, newJobsFound: jobsDiscovered, applicationsProcessed, staleCount, expiredCount };
   } catch (error: any) {
-    logger.error('Fatal error during discovery run', error);
-    return { newJobsFound: totalNewJobs, staleCount: 0, expiredCount: 0 };
+    logger.error('Fatal error during hourly discovery & auto-apply run', error);
+    return { usersProcessed, jobsDiscovered, newJobsFound: jobsDiscovered, applicationsProcessed, staleCount: 0, expiredCount: 0 };
   }
 }
 
 export function startJobDiscoveryJob() {
-  const schedule = process.env.DISCOVERY_CRON_SCHEDULE || '0 */6 * * *';
-  logger.info(`⏰ Initializing Job Discovery Scheduler with cron schedule: "${schedule}"`);
+  // Default: runs automatically every 1 hour on the hour
+  const schedule = process.env.DISCOVERY_CRON_SCHEDULE || '0 * * * *';
+  logger.info(`⏰ Initializing Hourly Job Discovery & Auto-Apply Scheduler with cron: "${schedule}"`);
 
   cron.schedule(schedule, async () => {
     await executeDiscoveryRun();
   });
 
-  logger.info('✅ Job discovery scheduler started');
+  logger.info('✅ Hourly job discovery & auto-apply scheduler started (runs every 1 hour)');
 }

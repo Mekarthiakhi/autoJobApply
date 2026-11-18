@@ -109,7 +109,7 @@ export class MultiPortalAggregator {
     byPortal: Record<string, number>;
   }> {
     const role = query.role || 'Frontend Developer';
-    const location = query.locations?.[0] || 'Hyderabad';
+    const location = query.locations?.[0] || 'Remote';
     const limit = Math.min(query.limitPerPortal || 6, 15);
 
     const searchTerms = Array.from(
@@ -162,20 +162,29 @@ export class MultiPortalAggregator {
       }
     });
 
-    // Round-robin interleave across portals so top N jobs represent EVERY active portal
-    const allJobs: DiscoveredJobRecord[] = [];
+    // Round-robin interleave across portals, prioritizing REMOTE roles first
+    const interleaved: DiscoveredJobRecord[] = [];
     let round = 0;
     let addedInRound = true;
     while (addedInRound) {
       addedInRound = false;
       for (const list of perPortalLists) {
         if (round < list.length) {
-          allJobs.push(list[round]);
+          interleaved.push(list[round]);
           addedInRound = true;
         }
       }
       round++;
     }
+
+    const isRemoteJob = (j: DiscoveredJobRecord) =>
+      /remote|worldwide|anywhere|work from home|wfh/i.test(`${j.location} ${j.title}`) ||
+      ['remotive', 'remoteok', 'jobicy', 'himalayas'].includes(j.source);
+
+    const allJobs = [
+      ...interleaved.filter(isRemoteJob),
+      ...interleaved.filter((j) => !isRemoteJob(j)),
+    ];
 
     logger.info('Multi-portal job discovery finished', {
       role,
@@ -321,15 +330,17 @@ export class MultiPortalAggregator {
 
   // Official LinkedIn / Indeed / Glassdoor / Shine / Naukri Aggregator via RapidAPI JSearch v2
   private async fetchJSearch(role: string, location: string, limit: number): Promise<DiscoveredJobRecord[]> {
-    const cleanLoc = location && location.toLowerCase() !== 'remote' ? location : 'India';
+    const wantsRemote = !location || /remote/i.test(location);
+    const cleanLoc = wantsRemote ? 'India' : location;
     const isIndia = /india|hyderabad|bangalore|bengaluru|pune|mumbai|chennai|delhi|noida|gurgaon/i.test(cleanLoc);
-    const q = `${role} in ${cleanLoc}`;
+    const q = wantsRemote ? `${role} remote in India` : `${role} in ${cleanLoc}`;
     const res = await axios.get('https://jsearch.p.rapidapi.com/search-v2', {
       params: {
         query: q,
         num_pages: '1',
         country: isIndia ? 'in' : 'us',
         date_posted: 'all',
+        ...(wantsRemote ? { remote_jobs_only: 'true' } : {}),
       },
       headers: {
         'x-rapidapi-key': process.env.RAPIDAPI_KEY || '',

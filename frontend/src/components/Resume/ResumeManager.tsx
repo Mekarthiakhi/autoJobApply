@@ -24,6 +24,7 @@ interface Variant {
     sectionsOptimized: number;
   };
   isPinned?: boolean;
+  textContent?: string;
 }
 
 function parseJsonArray(val: any): string[] {
@@ -84,7 +85,12 @@ const ResumeManager: React.FC = () => {
         const skills = parseJsonArray(v.skills || resume?.skills);
         const keywords = parseJsonArray(v.keywords || resume?.keywords);
         const allKeywords = Array.from(new Set([...skills, ...keywords])).slice(0, 8);
-        const score = typeof v.match_score === 'number' ? Math.round(v.match_score) : avgJobScore;
+        const score =
+          typeof v.ats_score === 'number' && v.ats_score > 0
+            ? Math.round(v.ats_score)
+            : typeof v.match_score === 'number' && v.match_score > 0
+            ? Math.round(v.match_score)
+            : avgJobScore;
         const label = v.label || v.file_name || 'Resume Version';
         const parts = label.split(' at ');
         const jobTitle = parts[0]?.replace(/^Tailored:\s*/i, '') || label;
@@ -109,6 +115,7 @@ const ResumeManager: React.FC = () => {
             sectionsOptimized: 3,
           },
           isPinned: Boolean(v.is_default),
+          textContent: v.text_content || resume?.text_content || '',
         };
       });
 
@@ -218,6 +225,18 @@ const ResumeManager: React.FC = () => {
     }
   };
 
+  const handleDownloadVariant = (variant: Variant) => {
+    const content = variant.textContent || `${variant.title}\nSkills: ${variant.keywordsAdded.join(', ')}`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${variant.title.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 60)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded "${variant.title}"`);
+  };
+
   const averageMatch =
     variants.length > 0
       ? Math.round(variants.reduce((sum, v) => sum + v.matchScore, 0) / variants.length)
@@ -233,14 +252,14 @@ const ResumeManager: React.FC = () => {
       : 0;
 
   return (
-    <div className="w-full space-y-8 fade-in">
+    <div className="content max-w-7xl mx-auto px-6 md:px-8 py-6 md:py-8 space-y-8 fade-in">
       {/* Header Section */}
-      <div className="flex justify-between items-start flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-display font-bold text-white mb-2">
+          <h1 className="text-3xl font-display font-bold text-white tracking-tight">
             Resume Manager
           </h1>
-          <p className="text-gray-400 text-sm">
+          <p className="text-gray-400 text-sm mt-1">
             Upload your resume, manage AI-tailored versions, and inspect real skills gaps
           </p>
         </div>
@@ -251,14 +270,19 @@ const ResumeManager: React.FC = () => {
           accept=".pdf,.doc,.docx"
           onChange={handleFileUpload}
         />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="neumo-btn inline-flex items-center gap-2 text-sm bg-accent-primary text-white shadow-glow-blue"
-        >
-          <Plus size={16} />
-          {uploading ? 'Uploading...' : 'Upload Base Resume'}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link to="/resume-builder" className="neumo-btn">
+            Open Builder
+          </Link>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="neumo-btn-primary"
+          >
+            <Plus size={16} />
+            {uploading ? 'Uploading...' : 'Upload Base Resume'}
+          </button>
+        </div>
       </div>
 
       {/* Active Uploaded Base Resume Banner */}
@@ -396,7 +420,7 @@ const ResumeManager: React.FC = () => {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="neumo-btn inline-flex items-center gap-2 text-sm bg-accent-primary text-white"
+                className="neumo-btn-primary"
               >
                 <Plus size={16} />
                 Upload Base Resume
@@ -404,28 +428,22 @@ const ResumeManager: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="flex gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <button
                   onClick={() => setSortBy('recent')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    sortBy === 'recent' ? 'bg-accent-primary text-white shadow-glow-blue' : 'neumo-btn'
-                  }`}
+                  className={sortBy === 'recent' ? 'neumo-btn-primary' : 'neumo-btn'}
                 >
                   Most Recent
                 </button>
                 <button
                   onClick={() => setSortBy('match')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    sortBy === 'match' ? 'bg-accent-primary text-white shadow-glow-blue' : 'neumo-btn'
-                  }`}
+                  className={sortBy === 'match' ? 'neumo-btn-primary' : 'neumo-btn'}
                 >
                   Highest Match
                 </button>
                 <button
                   onClick={() => setSortBy('improvement')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    sortBy === 'improvement' ? 'bg-accent-primary text-white shadow-glow-blue' : 'neumo-btn'
-                  }`}
+                  className={sortBy === 'improvement' ? 'neumo-btn-primary' : 'neumo-btn'}
                 >
                   Most Improved
                 </button>
@@ -444,6 +462,7 @@ const ResumeManager: React.FC = () => {
                         {...variant}
                         isPinned={true}
                         onPin={() => handleTogglePin(variant.id)}
+                        onDownload={() => handleDownloadVariant(variant)}
                         onDelete={() => handleDeleteVariant(variant.id)}
                       />
                     ))}
@@ -463,6 +482,7 @@ const ResumeManager: React.FC = () => {
                         {...variant}
                         isPinned={false}
                         onPin={() => handleTogglePin(variant.id)}
+                        onDownload={() => handleDownloadVariant(variant)}
                         onDelete={() => handleDeleteVariant(variant.id)}
                       />
                     ))}

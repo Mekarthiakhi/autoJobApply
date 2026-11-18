@@ -154,31 +154,31 @@ const Companies: React.FC = () => {
   };
 
   return (
-    <div className="w-full space-y-8 fade-in">
+    <div className="content max-w-7xl mx-auto px-6 md:px-8 py-6 md:py-8 space-y-8 fade-in">
       {/* Header Section */}
-      <div className="flex justify-between items-start flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-display font-bold text-white mb-2">
+          <h1 className="text-3xl font-display font-bold text-white tracking-tight">
             Target Companies
           </h1>
-          <p className="text-gray-400 text-sm">
+          <p className="text-gray-400 text-sm mt-1">
             Dynamically aggregated from your discovered jobs and submitted applications
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={handleExportCsv}
             disabled={companies.length === 0}
-            className="neumo-btn inline-flex items-center gap-2 text-sm disabled:opacity-50"
+            className="neumo-btn"
           >
-            <Download size={16} />
+            <Download size={15} />
             Export CSV
           </button>
           <button
             onClick={() => setIsAIModalOpen(true)}
-            className="neumo-btn inline-flex items-center gap-2 text-sm bg-accent-primary text-white shadow-glow-blue hover:shadow-glow-blue"
+            className="neumo-btn-primary"
           >
-            <Sparkles size={16} />
+            <Sparkles size={15} />
             Discover with AI
           </button>
         </div>

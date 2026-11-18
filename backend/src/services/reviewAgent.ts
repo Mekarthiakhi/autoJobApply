@@ -455,12 +455,21 @@ export class ReviewAgent {
     const db = await getDatabase();
     const stageStatus = options.stageStatus || ApplicationStage.READY_FOR_REVIEW;
 
-    const existing = await db.get(
-      `SELECT id FROM applications WHERE user_id = ? AND job_id = ?`,
+    const existing = await db.get<{ id: string; status: string; review_status: string; stage_status: string }>(
+      `SELECT id, status, review_status, stage_status FROM applications WHERE user_id = ? AND job_id = ?`,
       [userId, jobId]
     );
 
     if (existing) {
+      // Never overwrite an already-applied, approved, or rejected application on subsequent hourly runs
+      if (
+        existing.status === 'applied' ||
+        existing.review_status === 'approved' ||
+        existing.review_status === 'rejected' ||
+        existing.stage_status === ApplicationStage.SUBMITTED
+      ) {
+        return existing.id;
+      }
       await db.run(
         `UPDATE applications SET
           review_status = 'pending',

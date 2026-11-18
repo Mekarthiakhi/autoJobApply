@@ -11,6 +11,7 @@ import {
 } from './contracts.js';
 import { agentRegistry } from './agentRegistry.js';
 import { plannerAgent } from '../services/plannerAgent.js';
+import { reviewAgent } from '../services/reviewAgent.js';
 
 export interface WorkflowPipelineOptions {
   workflowId?: string;
@@ -148,12 +149,20 @@ export class MultiAgentPipelineOrchestrator {
         logger.warn('No default resume configured for user; executing pipeline with explicit missing-resume state', { userId, workflowId });
       }
 
+      // Check whether auto-apply is enabled for this user (enabled by default unless turned off in Settings)
+      const autoSettings = await db.get<{ auto_apply_enabled: number }>(
+        `SELECT auto_apply_enabled FROM automation_settings WHERE user_id = ?`,
+        [userId]
+      );
+      const autoApplyEnabled = autoSettings ? autoSettings.auto_apply_enabled !== 0 : true;
+
       // Limit job batch size if requested
       const jobsToProcess = options.limitJobs ? uniqueJobIds.slice(0, options.limitJobs) : uniqueJobIds;
 
-      // 4. RANKING, INSPECTION & DRAFTING PER JOB
+      // 4. RANKING, INSPECTION, RESUME TAILORING & DRAFTING/AUTO-APPLY PER JOB
       const rankingAgentWrapper = agentRegistry.get(AgentResponsibility.JOB_RANKING);
       const browserAgentWrapper = agentRegistry.get(AgentResponsibility.BROWSER_AUTOMATION);
+      const resumeOptAgentWrapper = agentRegistry.get(AgentResponsibility.RESUME_OPTIMIZATION);
       const coverLetterAgentWrapper = agentRegistry.get(AgentResponsibility.COVER_LETTER);
       const preparationAgentWrapper = agentRegistry.get(AgentResponsibility.APPLICATION_PREPARATION);
 
@@ -216,6 +225,65 @@ export class MultiAgentPipelineOrchestrator {
             warnings.push(`Match score (${matchScore}%) is below configured threshold (${plan.autoRankThreshold || 50}%).`);
           }
 
+          // 4b-2. Resume Tailoring for this specific job
+          let activeResumeVersionId = resumeVersionId;
+          let activeResumeText = resumeText;
+          if (meetsThreshold && hasDefaultResume) {
+            try {
+              const existingTailored = await db.get<{ id: string; text_content: string }>(
+                `SELECT id, text_content FROM resume_versions WHERE user_id = ? AND target_job_id = ? LIMIT 1`,
+                [userId, job.id]
+              );
+              if (existingTailored) {
+                activeResumeVersionId = existingTailored.id;
+                activeResumeText = existingTailored.text_content || resumeText;
+              } else {
+                let tailoredKeywords = (rankData?.matchingSkills || []).slice(0, 10);
+                let tailoredNote = '';
+                if (resumeOptAgentWrapper) {
+                  const optRes = await resumeOptAgentWrapper.execute(
+                    {
+                      resumeText,
+                      jobTitle: job.title,
+                      jobDescription: job.job_description || '',
+                      missingSkills: rankData?.missingSkills || [],
+                    },
+                    ctx
+                  );
+                  if (optRes.status === 'SUCCESS' && optRes.data) {
+                    const extraKw = optRes.data.keywordsToInclude || [];
+                    tailoredKeywords = Array.from(new Set([...tailoredKeywords, ...extraKw])).slice(0, 12);
+                    const suggestions = (optRes.data.suggestions || []).slice(0, 3).join(' | ');
+                    if (suggestions) tailoredNote = `\n\n[AI Tailored for ${job.title} at ${job.company_name}]: ${suggestions}`;
+                  }
+                }
+                const tailoredId = uuidv4();
+                const tailoredLabel = `Tailored: ${job.title} at ${job.company_name}`.slice(0, 240);
+                const tailoredContent = `${resumeText}${tailoredNote}`;
+                await db.run(
+                  `INSERT INTO resume_versions (id, user_id, label, file_name, text_content, skills, parent_version_id, target_job_id, ats_score, version_number, is_default)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 2, 0)`,
+                  [
+                    tailoredId,
+                    userId,
+                    tailoredLabel,
+                    `${job.company_name.replace(/[^a-zA-Z0-9]+/g, '_')}_Tailored.pdf`,
+                    tailoredContent,
+                    JSON.stringify(tailoredKeywords),
+                    resumeVersionId,
+                    job.id,
+                    matchScore,
+                  ]
+                );
+                activeResumeVersionId = tailoredId;
+                activeResumeText = tailoredContent;
+                logger.info(`📄 Tailored resume created for "${job.title}" at "${job.company_name}"`, { tailoredId, matchScore });
+              }
+            } catch (tailorErr) {
+              logger.warn('Resume tailoring fell back to default resume', tailorErr);
+            }
+          }
+
           // 4c. Cover Letter Drafting
           state = 'DRAFTING';
           let coverData: CoverLetterOutput | undefined;
@@ -228,8 +296,8 @@ export class MultiAgentPipelineOrchestrator {
                 jobTitle: job.title,
                 companyName: job.company_name,
                 jobDescription: job.job_description || '',
-                resumeText,
-                resumeVersionId,
+                resumeText: activeResumeText,
+                resumeVersionId: activeResumeVersionId,
               },
               ctx
             );
@@ -239,14 +307,14 @@ export class MultiAgentPipelineOrchestrator {
             }
           }
 
-          // 4d. Application Preparation: Queue in Review Queue ONLY if role meets threshold
+          // 4d. Application Preparation & Default Auto-Apply (or Review Queue if auto-apply disabled)
           state = 'AWAITING_HUMAN_APPROVAL';
           if (meetsThreshold && preparationAgentWrapper) {
             const prepRes = await preparationAgentWrapper.execute(
               {
                 userId,
                 jobId: job.id,
-                resumeVersionId,
+                resumeVersionId: activeResumeVersionId,
                 coverLetterId: coverData?.coverLetterId,
                 matchScore,
                 screenshotPath: browserData?.screenshotPath,
@@ -256,14 +324,33 @@ export class MultiAgentPipelineOrchestrator {
               ctx
             );
 
-            if (prepRes.status === 'SUCCESS') {
+            if (prepRes.status === 'SUCCESS' && prepRes.data?.applicationId) {
               draftsQueuedForReview++;
-              logger.info(`📋 Application draft queued for human review: "${job.title}" at "${job.company_name}"`, {
-                workflowId,
-                userId,
-                jobId: job.id,
-                applicationId: prepRes.data?.applicationId,
-              });
+              const appId = prepRes.data.applicationId;
+
+              if (autoApplyEnabled) {
+                try {
+                  await reviewAgent.approve(userId, appId, {
+                    verifiedAnswers: true,
+                    notes: `Auto-applied with tailored resume (${matchScore}% match) & Gemini cover letter`,
+                  });
+                  logger.info(`🚀 Auto-applied to "${job.title}" at "${job.company_name}" (${matchScore}% match)`, {
+                    workflowId,
+                    userId,
+                    jobId: job.id,
+                    applicationId: appId,
+                  });
+                } catch (autoErr: any) {
+                  logger.warn(`Auto-apply skipped for "${job.title}", left in Review Queue`, { error: autoErr.message });
+                }
+              } else {
+                logger.info(`📋 Application draft queued for human review: "${job.title}" at "${job.company_name}"`, {
+                  workflowId,
+                  userId,
+                  jobId: job.id,
+                  applicationId: appId,
+                });
+              }
             } else if (prepRes.error) {
               errors.push(`Application preparation failed for job ${job.id}: ${prepRes.error}`);
             }

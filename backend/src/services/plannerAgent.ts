@@ -73,7 +73,7 @@ export class PlannerAgent {
         [userId]
       );
       const userLocs = this.parseJsonArray(userRow?.preferred_locations);
-      config.targetLocations = userLocs.length > 0 ? userLocs : ['Remote'];
+      config.targetLocations = userLocs.length > 0 ? userLocs : ['Remote', 'Hyderabad'];
     }
 
     if (config.preferredPlatforms.length === 0) {

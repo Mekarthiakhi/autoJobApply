@@ -229,6 +229,26 @@ async function startServer() {
         );
         logger.info(`📄 Synced existing uploaded resume "${r.file_name}" into resume_versions for user ${r.user_id}`);
       }
+      // Migrate legacy untouched automation_settings rows (old defaults: auto_apply=0, threshold=80) to new Hourly Auto-Apply defaults
+      await sql.run(
+        `UPDATE automation_settings
+         SET auto_apply_enabled = 1,
+             auto_apply_threshold = 55,
+             job_search_frequency = 'hourly',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE auto_apply_enabled = 0 AND auto_apply_threshold = 80`
+      );
+      // Ensure every user with a resume has an automation_settings row enabled by default
+      await sql.run(
+        `INSERT OR IGNORE INTO automation_settings (user_id, auto_apply_enabled, auto_apply_threshold, job_search_frequency)
+         SELECT DISTINCT r.user_id, 1, 55, 'hourly' FROM resumes r`
+      );
+      // Default empty preferred_locations on existing users to Remote-first
+      await sql.run(
+        `UPDATE users
+         SET preferred_locations = '["Remote"]'
+         WHERE preferred_locations IS NULL OR preferred_locations = '' OR preferred_locations = '[]'`
+      );
     } catch (cleanupErr) {
       logger.warn('Seeded account cleanup skipped:', cleanupErr);
     }

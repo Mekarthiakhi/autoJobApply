@@ -463,3 +463,106 @@
 .drop-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.5; }
 .drop-text { font-size: 13px; color: rgba(255,255,255,0.4); }
 .drop-text strong { color: #A5A0FF; }
+
+/* COHESIVE DARK DESIGN TOKENS FOR COMPANIES, RESUME & ANALYTICS */
+@layer components {
+  .neumo-card {
+    background: #12131F;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .neumo-card:hover {
+    border-color: rgba(108, 99, 255, 0.28);
+  }
+
+  .neumo-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e2e8f0;
+    background: #1a1d30;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .neumo-btn:hover:not(:disabled) {
+    background: #232740;
+    border-color: rgba(108, 99, 255, 0.45);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+  .neumo-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .neumo-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+    background: linear-gradient(135deg, #6C63FF 0%, #4f46e5 100%);
+    border: 1px solid rgba(129, 140, 248, 0.45);
+    box-shadow: 0 6px 20px rgba(108, 99, 255, 0.35);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .neumo-btn-primary:hover:not(:disabled) {
+    opacity: 0.92;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 26px rgba(108, 99, 255, 0.45);
+  }
+  .neumo-btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .neumo-input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #0D0E1A;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f8fafc;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .neumo-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+  .neumo-input:focus {
+    border-color: #6C63FF;
+    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.18);
+  }
+
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.45);
+  }
+  .kpi-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+  }
+}
