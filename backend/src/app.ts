@@ -36,44 +36,70 @@ const app: Express = express();
 app.set('trust proxy', 1);
 
 // Security: Helmet for HTTP response security headers
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "https:", "'unsafe-inline'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "https:"],
+      workerSrc: ["'self'", "blob:"],
+      objectSrc: ["'none'"],
+    },
+  },
+}));
 
-// Security: Controlled CORS policy
+// Security: Controlled CORS policy (always permits same-origin & configured origins)
 const isStrictEnv = env.NODE_ENV === 'production' || env.NODE_ENV === 'staging';
-const allowedOrigins = process.env.CORS_ORIGIN 
+const configuredOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
   : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://localhost:5000'];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (e.g. mobile apps, curl, or same-origin server-to-server)
-    if (!origin) {
-      return callback(null, true);
-    }
-    if (!isStrictEnv && allowedOrigins.includes('*')) {
-      return callback(null, true);
-    }
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (allowed === origin) return true;
-      if (allowed.includes('*')) {
-        const regex = new RegExp('^' + allowed.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
-        return regex.test(origin);
+if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+  configuredOrigins.push(`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+}
+
+app.use((req, res, next) => {
+  const host = req.get('host');
+  const sameOrigins = host ? [`${req.protocol}://${host}`, `https://${host}`, `http://${host}`] : [];
+
+  return cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, or server-to-server)
+      if (!origin) {
+        return callback(null, true);
       }
-      return false;
-    });
-    if (isAllowed) {
-      return callback(null, true);
-    }
-    return callback(new Error(`Blocked by CORS policy: origin ${origin} is not allowed`));
-  },
-  credentials: true,
-}));
+      // Always allow same-origin requests (browsers send Origin on <script type="module" crossorigin> and POSTs)
+      if (sameOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      if (!isStrictEnv && configuredOrigins.includes('*')) {
+        return callback(null, true);
+      }
+      const isAllowed = configuredOrigins.some(allowed => {
+        if (allowed === origin) return true;
+        if (allowed.includes('*')) {
+          const regex = new RegExp('^' + allowed.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+          return regex.test(origin);
+        }
+        return false;
+      });
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Blocked by CORS policy: origin ${origin} is not allowed`));
+    },
+    credentials: true,
+  })(req, res, next);
+});
 
 // Request body parser with safe payload limit
 app.use(express.json({ limit: '10mb' }));
 
-// Global IP rate limiting
-app.use(apiLimiter);
+// API IP rate limiting (scoped to /api so static assets are never rate-limited)
+app.use('/api', apiLimiter);
 
 // Comprehensive Health check endpoint
 const healthHandler = async (_req: Request, res: Response) => {
