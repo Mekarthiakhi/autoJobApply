@@ -64,7 +64,15 @@ export const Login: React.FC = () => {
           </div>
 
           <div className={styles.formGroup} style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 500, color: '#cbd5e1' }}>Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: 0 }}>Password</label>
+              <Link
+                to="/forgot-password"
+                style={{ fontSize: '12px', color: '#818cf8', textDecoration: 'none', fontWeight: 500 }}
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               className={styles.inputField}

@@ -4,6 +4,8 @@ import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
+import ForgotPassword from './components/Auth/ForgotPassword';
+import ResetPassword from './components/Auth/ResetPassword';
 import Dashboard from './components/Dashboard/Dashboard';
 import AgentsStudio from './components/Agents/AgentsStudio';
 import JobsTable from './components/Jobs/JobsTable';
@@ -50,6 +52,8 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
         <Route
           path="/dashboard"

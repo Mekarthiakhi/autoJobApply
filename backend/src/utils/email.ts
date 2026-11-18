@@ -4,9 +4,15 @@ import { logger } from './logger.js';
 
 const resend = new Resend(env.RESEND_API_KEY || 're_mock_key');
 
+function getFrontendBaseUrl(): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, '');
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  return 'http://localhost:3000';
+}
+
 export async function sendVerificationEmail(email: string, fullName: string, token: string) {
   try {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = getFrontendBaseUrl();
     const verifyLink = `${frontendUrl}/verify-email?token=${token}`;
 
     if (!env.RESEND_API_KEY) {
@@ -38,7 +44,7 @@ export async function sendVerificationEmail(email: string, fullName: string, tok
 
 export async function sendPasswordResetEmail(email: string, fullName: string, token: string) {
   try {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = getFrontendBaseUrl();
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     if (!env.RESEND_API_KEY) {

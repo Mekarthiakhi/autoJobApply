@@ -186,7 +186,7 @@ export async function forgotPassword(req: Request, res: Response) {
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpires = new Date(Date.now() + 3600000); // 1 hour from now
+    const resetTokenExpires = new Date(Date.now() + 3600000).toISOString(); // 1 hour from now
     
     await userRepository.update(user.id, {
       reset_token: resetToken,
@@ -212,6 +212,10 @@ export async function resetPassword(req: Request, res: Response) {
     
     if (!token || !password) {
       throw new AppError(400, 'Token and new password are required');
+    }
+
+    if (password.length < 6) {
+      throw new AppError(400, 'Password must be at least 6 characters long');
     }
 
     const user = await userRepository.findByResetToken(token);
