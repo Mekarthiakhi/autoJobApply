@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { resumeVersionsAPI } from '../../api/auth';
 import { FileText, Star, Trash2, Upload, Plus } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 
 interface ResumeVersion {
@@ -13,6 +14,7 @@ interface ResumeVersion {
 }
 
 const ResumeVersions: React.FC = () => {
+  const toast = useToast();
   const [versions, setVersions] = useState<ResumeVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -36,8 +38,7 @@ const ResumeVersions: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const label = prompt('Enter a label for this resume version (e.g., Frontend Developer):');
-    if (!label) return;
+    const label = file.name.replace(/\.[^.]+$/, '') || 'Resume Version';
 
     const formData = new FormData();
     formData.append('resume', file);
@@ -47,9 +48,10 @@ const ResumeVersions: React.FC = () => {
     try {
       await resumeVersionsAPI.createVersion(formData);
       await fetchVersions();
+      toast.success(`"${file.name}" uploaded successfully!`);
     } catch (error) {
       console.error('Failed to upload resume', error);
-      alert('Failed to upload resume');
+      toast.error('Failed to upload resume');
     } finally {
       setIsUploading(false);
       // Reset input
@@ -61,18 +63,21 @@ const ResumeVersions: React.FC = () => {
     try {
       await resumeVersionsAPI.setDefault(id);
       await fetchVersions();
+      toast.success('Default resume version updated.');
     } catch (error) {
       console.error('Failed to set default', error);
+      toast.error('Failed to set default version.');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this version?')) return;
     try {
       await resumeVersionsAPI.deleteVersion(id);
       setVersions(versions.filter(v => v.id !== id));
+      toast.success('Resume version deleted.');
     } catch (error) {
       console.error('Failed to delete version', error);
+      toast.error('Failed to delete version.');
     }
   };
 

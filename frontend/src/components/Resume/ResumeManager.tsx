@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, Sparkles, TrendingUp, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Sparkles, TrendingUp, FileText, CheckCircle2 } from 'lucide-react';
 import ResumeSidebar from './ResumeSidebar';
 import ResumeVariant from './ResumeVariant';
 import SkillsGapAnalysis, { Skill } from './SkillsGapAnalysis';
 import { resumeAPI, resumeVersionsAPI, jobsAPI } from '../../api/auth';
+import { useToast } from '../../context/ToastContext';
 
 interface Variant {
   id: string;
@@ -38,6 +40,7 @@ function parseJsonArray(val: any): string[] {
 }
 
 const ResumeManager: React.FC = () => {
+  const toast = useToast();
   const [variants, setVariants] = useState<Variant[]>([]);
   const [baseResume, setBaseResume] = useState<any>(null);
   const [currentSkills, setCurrentSkills] = useState<Skill[]>([]);
@@ -174,10 +177,10 @@ const ResumeManager: React.FC = () => {
 
       await resumeAPI.uploadResume(formData);
       await loadResumeData();
-      alert('Resume uploaded and parsed successfully!');
+      toast.success(`"${file.name}" uploaded and parsed successfully!`);
     } catch (error: any) {
       console.error('Failed to upload resume', error);
-      alert(error?.response?.data?.error || 'Failed to upload resume');
+      toast.error(error?.response?.data?.error || 'Failed to upload resume');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -194,13 +197,13 @@ const ResumeManager: React.FC = () => {
   const unpinnedVariants = sortedVariants.filter((v) => !v.isPinned);
 
   const handleDeleteVariant = async (id: string) => {
-    if (!window.confirm('Delete this resume version?')) return;
     try {
       await resumeVersionsAPI.deleteVersion(id);
       setVariants((prev) => prev.filter((v) => v.id !== id));
+      toast.success('Resume version deleted.');
     } catch (error) {
       console.error('Failed to delete resume version', error);
-      alert('Failed to delete resume version');
+      toast.error('Failed to delete resume version');
     }
   };
 
@@ -208,8 +211,10 @@ const ResumeManager: React.FC = () => {
     try {
       await resumeVersionsAPI.setDefault(id);
       setVariants((prev) => prev.map((v) => ({ ...v, isPinned: v.id === id })));
+      toast.success('Default resume version updated.');
     } catch (error) {
       console.error('Failed to set default resume version', error);
+      toast.error('Failed to update default resume version.');
     }
   };
 
@@ -255,6 +260,60 @@ const ResumeManager: React.FC = () => {
           {uploading ? 'Uploading...' : 'Upload Base Resume'}
         </button>
       </div>
+
+      {/* Active Uploaded Base Resume Banner */}
+      {baseResume && baseResume.file_name && (
+        <div className="neumo-card p-5 border border-emerald-500/30 bg-emerald-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                  Uploaded Base Resume
+                </span>
+                <span className="text-xs text-gray-400">
+                  · {baseResume.uploaded_at ? new Date(baseResume.uploaded_at).toLocaleString() : 'Active'}
+                </span>
+              </div>
+              <div className="text-base font-bold text-white mt-0.5">{baseResume.file_name}</div>
+              {baseSkills.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {baseSkills.slice(0, 10).map((skill) => (
+                    <span
+                      key={skill}
+                      className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                  {baseSkills.length > 10 && (
+                    <span className="text-[11px] px-2 py-0.5 text-gray-400">
+                      +{baseSkills.length - 10} more
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/resume-builder"
+              className="neumo-btn text-xs px-3 py-2 text-indigo-300 hover:text-white"
+            >
+              Open in Builder
+            </Link>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="neumo-btn text-xs px-3 py-2 text-white"
+            >
+              Replace File
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

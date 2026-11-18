@@ -2,6 +2,7 @@ import { getDatabase } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { candidateExtractor } from '../resumes/candidateExtractor.js';
 import { StructuredResume } from '../resumes/types.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface ResumeData {
   skills: string[];
@@ -88,6 +89,39 @@ export class ResumeService {
     );
     
     const result = await db.get(`SELECT * FROM resumes WHERE user_id = ?`, [userId]);
+
+    // Sync uploaded base resume into resume_versions so Resume Manager & AI Agents immediately see it
+    try {
+      const cleanLabel = fileName.replace(/\.[^.]+$/, '') || 'Uploaded Resume';
+      const existingVersion = await db.get<{ id: string; version_number: number }>(
+        `SELECT id, version_number FROM resume_versions WHERE user_id = ? AND file_name = ? ORDER BY updated_at DESC LIMIT 1`,
+        [userId, fileName]
+      );
+      await db.run(`UPDATE resume_versions SET is_default = 0 WHERE user_id = ?`, [userId]);
+
+      if (existingVersion) {
+        await db.run(
+          `UPDATE resume_versions
+           SET label = ?, text_content = ?, skills = ?, structured_data = ?, is_default = 1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [cleanLabel, textContent, skillsJson, builderDataJson, existingVersion.id]
+        );
+      } else {
+        const countRow = await db.get<{ cnt: number }>(
+          `SELECT COUNT(*) as cnt FROM resume_versions WHERE user_id = ?`,
+          [userId]
+        );
+        const nextVersion = (countRow?.cnt || 0) + 1;
+        await db.run(
+          `INSERT INTO resume_versions (id, user_id, label, file_name, text_content, skills, structured_data, version_number, is_default)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [uuidv4(), userId, cleanLabel, fileName, textContent, skillsJson, builderDataJson, nextVersion]
+        );
+      }
+    } catch (syncErr) {
+      logger.warn('Failed to sync uploaded resume into resume_versions', syncErr);
+    }
+
     return [result];
   }
 }

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { agentsAPI } from '../../api/auth';
 import { Link } from 'react-router-dom';
+import { useToast } from '../../context/ToastContext';
 
 interface AgentInfo {
   name: string;
@@ -41,6 +42,7 @@ interface CustomAgent {
 }
 
 export const AgentsStudio: React.FC = () => {
+  const toast = useToast();
   const [systemAgents, setSystemAgents] = useState<AgentInfo[]>([]);
   const [customAgents, setCustomAgents] = useState<CustomAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,9 +122,10 @@ export const AgentsStudio: React.FC = () => {
       setShowCreateModal(false);
       setAgentName('');
       fetchAgents();
+      toast.success('Custom agent created!');
     } catch (err) {
       console.error('Failed to create agent', err);
-      alert('Failed to create custom agent');
+      toast.error('Failed to create custom agent');
     } finally {
       setCreateLoading(false);
     }

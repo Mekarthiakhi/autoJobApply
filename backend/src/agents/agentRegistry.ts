@@ -42,6 +42,7 @@ import { telegramService } from '../services/telegramService.js';
 import { linkedinScraper } from '../scrapers/linkedinScraper.js';
 import { indeedScraper } from '../scrapers/indeedScraper.js';
 import { naukriScraper } from '../scrapers/naukriScraper.js';
+import axios from 'axios';
 
 const jobRepository = new JobRepository();
 const activityLogRepository = new ActivityLogRepository();
@@ -97,20 +98,93 @@ export class JobDiscoveryAgentWrapper implements AgentContract<JobDiscoveryInput
   readonly name = 'JobDiscoveryAgent';
   readonly responsibility = AgentResponsibility.JOB_DISCOVERY;
 
+  private stripHtml(html: string): string {
+    return (html || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 3500);
+  }
+
   async execute(input: JobDiscoveryInput, ctx: AgentContext): Promise<AgentResult<JobDiscoveryOutput>> {
     return executeSafely(this.name, this.responsibility, ctx, async () => {
       const allJobs: any[] = [];
-      const role = input.targetRoles[0] || 'Software Engineer';
-      const location = input.targetLocations[0] || 'Remote';
+      const role = input.targetRoles[0] || 'React Developer';
+      const searchKeyword = role.split(/\s+/)[0] || 'React';
+      const limit = Math.min(input.limitPerPlatform || 10, 15);
 
-      // In live mode (not fast-test), scrape external platforms
-      if (!input.fastTest && input.mode !== 'test') {
+      // Primary Live Public Job APIs (HTTPS port 443 — fast, real companies, real apply URLs)
+      try {
+        const remotiveRes = await axios.get(
+          `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(searchKeyword)}&limit=${limit}`,
+          { timeout: 12000 }
+        );
+        const remotiveJobs = Array.isArray(remotiveRes.data?.jobs) ? remotiveRes.data.jobs : [];
+        for (const rj of remotiveJobs.slice(0, limit)) {
+          allJobs.push({
+            title: rj.title || role,
+            company_name: rj.company_name || 'Unknown Company',
+            location: rj.candidate_required_location || 'Remote',
+            salary: rj.salary || 'Not specified',
+            experience_level: rj.job_type === 'full_time' ? 'Full-Time' : (rj.job_type || 'Full-Time'),
+            required_skills: Array.isArray(rj.tags) ? rj.tags.slice(0, 12) : [],
+            job_description: this.stripHtml(rj.description || ''),
+            apply_url: rj.url || '',
+            source: 'remotive',
+            external_id: `remotive-${rj.id}`,
+            status: 'active',
+            posted_date: rj.publication_date ? new Date(rj.publication_date) : new Date(),
+          });
+        }
+        logger.info(`Fetched ${remotiveJobs.length} live jobs from Remotive API`, { searchKeyword });
+      } catch (err: any) {
+        logger.warn('Remotive public API fetch skipped', { error: err.message });
+      }
+
+      // Secondary Live Public Job API: Arbeitnow
+      if (allJobs.length < limit) {
+        try {
+          const arbRes = await axios.get('https://www.arbeitnow.com/api/job-board-api', { timeout: 12000 });
+          const arbJobs = Array.isArray(arbRes.data?.data) ? arbRes.data.data : [];
+          const kwLower = searchKeyword.toLowerCase();
+          const matchingArb = arbJobs.filter((j: any) =>
+            `${j.title || ''} ${(j.tags || []).join(' ')} ${j.description || ''}`.toLowerCase().includes(kwLower)
+          );
+          for (const aj of matchingArb.slice(0, Math.max(3, limit - allJobs.length))) {
+            allJobs.push({
+              title: aj.title || role,
+              company_name: aj.company_name || 'Unknown Company',
+              location: aj.remote ? `${aj.location || 'Remote'} (Remote)` : (aj.location || 'Remote'),
+              salary: 'Not specified',
+              experience_level: 'Full-Time',
+              required_skills: Array.isArray(aj.tags) ? aj.tags.slice(0, 12) : [],
+              job_description: this.stripHtml(aj.description || ''),
+              apply_url: aj.url || '',
+              source: 'arbeitnow',
+              external_id: `arbeitnow-${aj.slug}`,
+              status: 'active',
+              posted_date: aj.created_at ? new Date(aj.created_at * 1000) : new Date(),
+            });
+          }
+          logger.info(`Fetched ${matchingArb.length} matching live jobs from Arbeitnow API`, { searchKeyword });
+        } catch (err: any) {
+          logger.warn('Arbeitnow public API fetch skipped', { error: err.message });
+        }
+      }
+
+      // Optional Playwright scrapers only if public APIs returned nothing
+      if (allJobs.length === 0 && !input.fastTest && input.mode !== 'test') {
+        const location = input.targetLocations[0] || 'Remote';
         if (input.platforms.includes('linkedin')) {
           try {
             const jobs = await linkedinScraper.searchJobs([role], location);
             allJobs.push(...jobs);
           } catch (err: any) {
-            logger.warn('LinkedIn discovery fallback', { error: err.message });
+            logger.warn('LinkedIn discovery skipped', { error: err.message });
           }
         }
         if (input.platforms.includes('indeed')) {
@@ -118,7 +192,7 @@ export class JobDiscoveryAgentWrapper implements AgentContract<JobDiscoveryInput
             const jobs = await indeedScraper.searchJobs([role], location);
             allJobs.push(...jobs);
           } catch (err: any) {
-            logger.warn('Indeed discovery fallback', { error: err.message });
+            logger.warn('Indeed discovery skipped', { error: err.message });
           }
         }
         if (input.platforms.includes('naukri')) {
@@ -126,49 +200,15 @@ export class JobDiscoveryAgentWrapper implements AgentContract<JobDiscoveryInput
             const jobs = await naukriScraper.searchJobs([role], location);
             allJobs.push(...jobs);
           } catch (err: any) {
-            logger.warn('Naukri discovery fallback', { error: err.message });
+            logger.warn('Naukri discovery skipped', { error: err.message });
           }
         }
       }
 
-      // If external scrapers yielded no positions, discover from existing database or provide realistic verified roles
+      // Final fallback: reuse existing real jobs from repository
       if (allJobs.length === 0) {
-        logger.info('No external live jobs scraped; querying repository or generating realistic test roles for candidate', { role, location });
-        const existingJobs = await jobRepository.findByKeywords([role], 5);
-        if (existingJobs.length > 0) {
-          allJobs.push(...existingJobs);
-        } else {
-          allJobs.push(
-            {
-              title: `${role} - Cloud Platform`,
-              company_name: 'Apex Systems Global',
-              location: location || 'Remote',
-              salary: '$125,000 - $160,000 / yr',
-              experience_level: 'Mid-Senior Level',
-              required_skills: ['TypeScript', 'React', 'Node.js', 'System Design'],
-              job_description: `We are seeking an experienced ${role} to lead full-stack platform development, build resilient APIs, and collaborate on user-focused automation.`,
-              apply_url: 'https://careers.apexsystems.example/jobs/platform-lead',
-              source: 'linkedin',
-              external_id: `apex-${Date.now()}-1`,
-              status: 'active',
-              posted_date: new Date(),
-            },
-            {
-              title: `Senior ${role}`,
-              company_name: 'Vanguard Tech Labs',
-              location: location || 'Hybrid',
-              salary: '$135,000 - $170,000 / yr',
-              experience_level: 'Senior Level',
-              required_skills: ['JavaScript', 'React', 'REST APIs', 'Cloud Computing'],
-              job_description: `Join Vanguard Tech Labs as a Senior ${role}. You will architect customer-facing web applications, maintain modern front-end performance, and integrate intelligent automation.`,
-              apply_url: 'https://vanguardlabs.example/careers/senior-eng',
-              source: 'indeed',
-              external_id: `vanguard-${Date.now()}-2`,
-              status: 'active',
-              posted_date: new Date(),
-            }
-          );
-        }
+        const existingJobs = await jobRepository.findByKeywords([searchKeyword], limit);
+        allJobs.push(...existingJobs);
       }
 
       const jobIds: string[] = [];
@@ -234,6 +274,34 @@ export class JobRankingAgentWrapper implements AgentContract<JobRankingInput, Jo
       );
 
       const threshold = input.threshold ?? 50;
+
+      // Persist score to match_scores so Jobs, Companies, and Dashboard display real AI scores
+      try {
+        const db = await getDatabase();
+        await db.run(
+          `INSERT INTO match_scores (user_id, job_id, match_score, missing_skills, matching_skills, strengths, recommendation, analyzed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT (user_id, job_id) DO UPDATE SET
+             match_score = excluded.match_score,
+             missing_skills = excluded.missing_skills,
+             matching_skills = excluded.matching_skills,
+             strengths = excluded.strengths,
+             recommendation = excluded.recommendation,
+             analyzed_at = CURRENT_TIMESTAMP`,
+          [
+            input.userId,
+            input.job.id,
+            result.score,
+            JSON.stringify(result.missingSkills || []),
+            JSON.stringify(result.matchingSkills || []),
+            JSON.stringify(result.strengths || []),
+            result.recommendation || 'consider',
+          ]
+        );
+      } catch (scoreSaveErr) {
+        logger.warn('Failed to persist match score', scoreSaveErr);
+      }
+
       return {
         jobId: input.job.id,
         score: result.score,

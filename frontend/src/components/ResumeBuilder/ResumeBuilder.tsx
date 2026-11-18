@@ -3,6 +3,7 @@ import styles from './ResumeBuilder.module.css';
 import client from '../../api/auth';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useToast } from '../../context/ToastContext';
 
 export interface Experience {
   id: string;
@@ -32,6 +33,7 @@ export interface ResumeData {
 }
 
 export const ResumeBuilder: React.FC = () => {
+  const toast = useToast();
   const [data, setData] = useState<ResumeData>({
     fullName: '',
     email: '',
@@ -128,9 +130,10 @@ export const ResumeBuilder: React.FC = () => {
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`${data.fullName || 'Resume'}_ATS.pdf`);
+      toast.success('ATS Resume PDF downloaded!');
     } catch (err) {
       console.error('Failed to generate PDF', err);
-      alert('Failed to generate PDF');
+      toast.error('Failed to generate PDF');
     }
   };
 

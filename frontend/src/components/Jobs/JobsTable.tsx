@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useJobs } from '../../hooks/useJobs';
 import { applicationsAPI, dashboardAPI } from '../../api/auth';
 import { Search, SlidersHorizontal, Clock, Home, Building, RefreshCw } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return 'Recently synced';
@@ -19,6 +20,7 @@ function formatRelativeTime(dateStr?: string): string {
 }
 
 export const JobsTable: React.FC = () => {
+  const toast = useToast();
   const { jobs, loading, fetchJobs, searchJobs } = useJobs();
   const [applications, setApplications] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,11 +98,19 @@ export const JobsTable: React.FC = () => {
   const handleDiscoverJobs = async () => {
     try {
       setDiscovering(true);
-      await dashboardAPI.runAgents();
+      toast.info('Running live job discovery & AI matching...');
+      const res = await dashboardAPI.runAgents({ sync: true, limitJobs: 6 });
       await loadData();
+      const discovered = res.data?.summary?.jobsDiscovered;
+      const queued = res.data?.summary?.draftsQueuedForReview;
+      toast.success(
+        typeof discovered === 'number'
+          ? `Discovered ${discovered} live jobs and queued ${queued || 0} drafts in Review Queue!`
+          : 'Live job discovery completed!'
+      );
     } catch (err) {
       console.error('Job discovery failed', err);
-      alert('Failed to run job discovery pipeline.');
+      toast.error('Failed to run job discovery pipeline.');
     } finally {
       setDiscovering(false);
     }
@@ -111,10 +121,10 @@ export const JobsTable: React.FC = () => {
       setApplyingJobId(jobId);
       await applicationsAPI.applyToJob(jobId);
       await loadData();
-      alert('Application submitted and tracked!');
+      toast.success('Application submitted and tracked!');
     } catch (err: any) {
       console.error('Failed to apply', err);
-      alert(err?.response?.data?.error || 'Failed to apply');
+      toast.error(err?.response?.data?.error || 'Failed to apply');
     } finally {
       setApplyingJobId(null);
     }

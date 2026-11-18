@@ -37,10 +37,43 @@ export class PlannerAgent {
       autoRankThreshold: settings.auto_rank_threshold,
     };
 
-    // Provide sensible defaults if user hasn't configured anything
+    // Dynamically derive target roles & locations from uploaded resume & user profile if not configured
+    const db = await getDatabase();
     if (config.targetRoles.length === 0) {
-      config.targetRoles = ['Software Developer', 'Frontend Developer', 'Full Stack Developer'];
-      logger.warn('No target roles configured, using defaults', { agent: 'Planner', userId });
+      const resumeRow = await db.get<{ text_content?: string; skills?: string; builder_data?: string }>(
+        `SELECT text_content, skills, builder_data FROM resumes WHERE user_id = ? LIMIT 1`,
+        [userId]
+      );
+      const inferredRoles: string[] = [];
+      if (resumeRow?.builder_data) {
+        try {
+          const parsed = JSON.parse(resumeRow.builder_data);
+          if (parsed?.headline) inferredRoles.push(String(parsed.headline).split(/[–—|-]/)[0].trim());
+          if (Array.isArray(parsed?.experience) && parsed.experience[0]?.role) {
+            inferredRoles.push(String(parsed.experience[0].role).trim());
+          }
+        } catch {}
+      }
+      const resumeText = `${resumeRow?.skills || ''} ${resumeRow?.text_content || ''}`.toLowerCase();
+      if (resumeText.includes('react')) inferredRoles.push('React Developer');
+      if (resumeText.includes('frontend') || resumeText.includes('front-end')) inferredRoles.push('Frontend Developer');
+      if (resumeText.includes('typescript') || resumeText.includes('javascript')) inferredRoles.push('JavaScript Developer');
+      if (resumeText.includes('node')) inferredRoles.push('Full Stack Developer');
+
+      const uniqueRoles = Array.from(new Set(inferredRoles.filter((r) => r && r.length >= 3))).slice(0, 3);
+      config.targetRoles = uniqueRoles.length > 0
+        ? uniqueRoles
+        : ['React Developer', 'Frontend Developer', 'Full Stack Developer'];
+      logger.info('Derived target roles from candidate resume', { agent: 'Planner', userId, targetRoles: config.targetRoles });
+    }
+
+    if (config.targetLocations.length === 0) {
+      const userRow = await db.get<{ preferred_locations?: string }>(
+        `SELECT preferred_locations FROM users WHERE id = ?`,
+        [userId]
+      );
+      const userLocs = this.parseJsonArray(userRow?.preferred_locations);
+      config.targetLocations = userLocs.length > 0 ? userLocs : ['Remote'];
     }
 
     if (config.preferredPlatforms.length === 0) {

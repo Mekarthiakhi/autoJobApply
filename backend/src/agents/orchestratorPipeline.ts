@@ -115,9 +115,9 @@ export class MultiAgentPipelineOrchestrator {
         }
       }
 
-      // Fetch user's default resume version isolated to authenticated user
+      // Fetch user's default resume version isolated to authenticated user (with automatic fallback to resumes table)
       const db = await getDatabase();
-      const resumeRow = await db.get<{ id: string; text_content: string }>(
+      let resumeRow = await db.get<{ id: string; text_content: string }>(
         `SELECT id, text_content
          FROM resume_versions
          WHERE user_id = ? AND is_default = 1
@@ -125,6 +125,22 @@ export class MultiAgentPipelineOrchestrator {
          LIMIT 1`,
         [userId]
       );
+      if (!resumeRow?.text_content) {
+        const baseResumeRow = await db.get<{ id: string; file_name: string; text_content: string; skills: string; builder_data: string }>(
+          `SELECT id, file_name, text_content, skills, builder_data FROM resumes WHERE user_id = ? LIMIT 1`,
+          [userId]
+        );
+        if (baseResumeRow?.text_content) {
+          const newVersionId = uuidv4();
+          const label = (baseResumeRow.file_name || 'Base Resume').replace(/\.[^.]+$/, '');
+          await db.run(
+            `INSERT INTO resume_versions (id, user_id, label, file_name, text_content, skills, structured_data, version_number, is_default)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)`,
+            [newVersionId, userId, label, baseResumeRow.file_name, baseResumeRow.text_content, baseResumeRow.skills || '[]', baseResumeRow.builder_data || null]
+          ).catch(() => {});
+          resumeRow = { id: newVersionId, text_content: baseResumeRow.text_content };
+        }
+      }
       const hasDefaultResume = Boolean(resumeRow?.text_content);
       const resumeText = hasDefaultResume ? resumeRow!.text_content : 'No resume provided.';
       const resumeVersionId = resumeRow?.id || null;

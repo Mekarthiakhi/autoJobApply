@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Loader } from 'lucide-react';
 import { jobsAPI, dashboardAPI } from '../../api/auth';
+import { useToast } from '../../context/ToastContext';
 
 interface AIDiscoverModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ const AIDiscoverModal: React.FC<AIDiscoverModalProps> = ({
   onClose,
   onDiscover,
 }) => {
+  const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -47,12 +49,13 @@ const AIDiscoverModal: React.FC<AIDiscoverModalProps> = ({
       if (selectedTags.length > 0) {
         await jobsAPI.searchJobs(selectedTags);
       } else {
-        await dashboardAPI.runAgents();
+        await dashboardAPI.runAgents({ sync: true, limitJobs: 6 });
       }
+      toast.success('Live companies & roles discovered!');
       if (onDiscover) onDiscover();
     } catch (err) {
       console.error('AI company discovery failed', err);
-      alert('Failed to discover companies. Please try again.');
+      toast.error('Failed to discover companies. Please try again.');
     } finally {
       setIsLoading(false);
     }

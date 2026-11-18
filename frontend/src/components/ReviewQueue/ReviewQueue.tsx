@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { reviewQueueAPI } from '../../api/auth';
 import { Check, X, ExternalLink, ChevronDown, ChevronUp, AlertTriangle, AlertCircle, Shield, FileText, Lock } from 'lucide-react';
 import styles from './ReviewQueue.module.css';
+import { useToast } from '../../context/ToastContext';
 
 interface ApplicationAnswerItem {
   question: string;
@@ -47,6 +48,7 @@ interface ReviewItem {
 }
 
 const ReviewQueue: React.FC = () => {
+  const toast = useToast();
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -88,11 +90,7 @@ const ReviewQueue: React.FC = () => {
   const handleApprove = async (review: ReviewItem) => {
     const id = review.application_id;
     if (!verifiedMap[id]) {
-      alert('Verification Required: You must verify all application answers and review the draft before granting submission approval.');
-      return;
-    }
-
-    if (!window.confirm(`Authorize submission for "${review.job_title}" at ${review.company_name}?\n\nThis confirms you have verified the draft answers, resume version, and explicitly authorize submission.`)) {
+      toast.error('Please check the verification box to confirm all application answers first.');
       return;
     }
 
@@ -109,11 +107,12 @@ const ReviewQueue: React.FC = () => {
 
       // Remove from pending reviews
       setReviews(prev => prev.filter(r => r.application_id !== id));
+      toast.success(`Authorized & submitted "${review.job_title}" at ${review.company_name}!`);
     } catch (error: any) {
       console.error('Approve failed', error);
       const msg = error?.response?.data?.error || 'Failed to authorize application submission';
       setActionErrorMap(prev => ({ ...prev, [id]: msg }));
-      alert(`Submission Authorization Error: ${msg}`);
+      toast.error(`Submission Error: ${msg}`);
     } finally {
       setSubmittingMap(prev => ({ ...prev, [id]: false }));
     }
@@ -123,9 +122,10 @@ const ReviewQueue: React.FC = () => {
     try {
       await reviewQueueAPI.reject(id, 'Candidate rejected draft');
       setReviews(prev => prev.filter(r => r.application_id !== id));
+      toast.info('Application draft rejected.');
     } catch (error) {
       console.error('Reject failed', error);
-      alert('Failed to reject application');
+      toast.error('Failed to reject application');
     }
   };
 

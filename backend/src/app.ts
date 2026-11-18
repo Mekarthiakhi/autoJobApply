@@ -205,10 +205,26 @@ async function startServer() {
           logger.info('🧹 Removed pre-seeded demo account akhileshmekarthi28@gmail.com for clean registration');
         }
       }
-      // Also clean up static demo-seeded jobs when demo seeding is disabled
+      // Also clean up static demo-seeded & .example placeholder jobs when demo seeding is disabled
       await sql.run(
-        `DELETE FROM jobs WHERE id IN ('job-react-senior-apex', 'job-react-frontend-techcorp', 'job-ui-react-fintech')`
+        `DELETE FROM jobs WHERE id IN ('job-react-senior-apex', 'job-react-frontend-techcorp', 'job-ui-react-fintech') OR apply_url LIKE '%.example%'`
       );
+      // Sync any uploaded base resumes into resume_versions if missing so users immediately see their uploads
+      const orphanResumes = await sql.all<any[]>(
+        `SELECT r.user_id, r.file_name, r.text_content, r.skills, r.builder_data
+         FROM resumes r
+         LEFT JOIN resume_versions rv ON rv.user_id = r.user_id
+         WHERE rv.id IS NULL AND r.text_content IS NOT NULL AND LENGTH(r.text_content) > 10`
+      );
+      for (const r of orphanResumes || []) {
+        const cleanLabel = (r.file_name || 'Uploaded Resume').replace(/\.[^.]+$/, '');
+        await sql.run(
+          `INSERT INTO resume_versions (user_id, label, file_name, text_content, skills, structured_data, version_number, is_default)
+           VALUES (?, ?, ?, ?, ?, ?, 1, 1)`,
+          [r.user_id, cleanLabel, r.file_name || 'resume.pdf', r.text_content, r.skills || '[]', r.builder_data || null]
+        );
+        logger.info(`📄 Synced existing uploaded resume "${r.file_name}" into resume_versions for user ${r.user_id}`);
+      }
     } catch (cleanupErr) {
       logger.warn('Seeded account cleanup skipped:', cleanupErr);
     }

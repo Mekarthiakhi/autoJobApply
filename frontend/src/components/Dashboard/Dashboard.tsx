@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { dashboardAPI } from '../../api/auth';
+import { useToast } from '../../context/ToastContext';
 import { Link } from 'react-router-dom';
 import {
   Search, Sparkles, Target, ArrowUp, Inbox, CheckCircle2,
@@ -56,6 +57,7 @@ interface SourcePerf {
 }
 
 export const Dashboard: React.FC = () => {
+  const toast = useToast();
   const [metrics, setMetrics] = useState<MetricData>({
     totalJobsDiscovered: 0,
     jobsShortlisted: 0,
@@ -128,11 +130,17 @@ export const Dashboard: React.FC = () => {
   const handleRunAgents = async () => {
     try {
       setRunningAgents(true);
-      const response = await dashboardAPI.runAgents();
-      alert(response.data.message || 'Multi-agent pipeline started successfully');
-      fetchDashboard();
+      toast.info('Running multi-agent pipeline (Discovery → Ranking → Cover Letters → Review Queue)...');
+      const response = await dashboardAPI.runAgents({ sync: true, limitJobs: 5 });
+      const s = response.data?.summary;
+      toast.success(
+        s
+          ? `Pipeline complete: ${s.jobsDiscovered} jobs discovered, ${s.jobsRanked} ranked, ${s.draftsQueuedForReview} drafts queued!`
+          : response.data?.message || 'Multi-agent pipeline completed successfully'
+      );
+      await fetchDashboard();
     } catch (err) {
-      alert('Error initiating agent pipeline');
+      toast.error('Error initiating agent pipeline');
     } finally {
       setRunningAgents(false);
     }

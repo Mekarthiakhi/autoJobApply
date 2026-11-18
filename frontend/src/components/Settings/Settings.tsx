@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { authAPI, resumeAPI } from '../../api/auth';
 import { Save } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 export const Settings: React.FC = () => {
+  const toast = useToast();
   const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
   const [newLocation, setNewLocation] = useState('');
   const [isAddingLocation, setIsAddingLocation] = useState(false);
@@ -63,10 +65,12 @@ export const Settings: React.FC = () => {
         autoApplyEnabled,
       });
       setSaveMessage('Settings saved successfully.');
+      toast.success('Settings saved successfully.');
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error) {
       console.error(error);
       setSaveMessage('Failed to save settings.');
+      toast.error('Failed to save settings.');
     } finally {
       setSaving(false);
     }
@@ -82,10 +86,12 @@ export const Settings: React.FC = () => {
       await resumeAPI.uploadResume(formData);
       setCurrentResumeName(file.name);
       setSaveMessage(`Uploaded ${file.name} successfully.`);
+      toast.success(`"${file.name}" uploaded and parsed successfully!`);
       setTimeout(() => setSaveMessage(null), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Resume upload failed', err);
       setSaveMessage('Failed to upload resume.');
+      toast.error(err?.response?.data?.error || 'Failed to upload resume.');
     } finally {
       setUploadingResume(false);
     }
