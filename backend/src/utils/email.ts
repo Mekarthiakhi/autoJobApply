@@ -10,18 +10,26 @@ function getFrontendBaseUrl(): string {
   return 'http://localhost:3000';
 }
 
-export async function sendVerificationEmail(email: string, fullName: string, token: string) {
+export interface EmailSendResult {
+  sent: boolean;
+  id?: string;
+  error?: string;
+}
+
+const DEFAULT_FROM = process.env.EMAIL_FROM || 'AutoApply AI <onboarding@resend.dev>';
+
+export async function sendVerificationEmail(email: string, fullName: string, token: string): Promise<EmailSendResult> {
   try {
     const frontendUrl = getFrontendBaseUrl();
     const verifyLink = `${frontendUrl}/verify-email?token=${token}`;
 
     if (!env.RESEND_API_KEY) {
       logger.info(`[MOCK EMAIL] Verification email to ${email}. Link: ${verifyLink}`);
-      return true;
+      return { sent: false, error: 'Email service (RESEND_API_KEY) is not configured on the server.' };
     }
 
-    await resend.emails.send({
-      from: 'AutoApply AI <onboarding@resend.dev>',
+    const { data, error } = await resend.emails.send({
+      from: DEFAULT_FROM,
       to: email,
       subject: 'Verify your email for AutoApply AI',
       html: `
@@ -35,30 +43,37 @@ export async function sendVerificationEmail(email: string, fullName: string, tok
         </div>
       `,
     });
-    return true;
-  } catch (error) {
+
+    if (error) {
+      logger.error('Resend rejected verification email', error);
+      return { sent: false, error: error.message || 'Email delivery rejected by Resend' };
+    }
+
+    logger.info(`Verification email sent to ${email} (id: ${data?.id})`);
+    return { sent: true, id: data?.id };
+  } catch (error: any) {
     logger.error('Failed to send verification email', error);
-    return false;
+    return { sent: false, error: error?.message || 'Failed to send verification email' };
   }
 }
 
-export async function sendPasswordResetEmail(email: string, fullName: string, token: string) {
+export async function sendPasswordResetEmail(email: string, fullName: string, token: string): Promise<EmailSendResult> {
   try {
     const frontendUrl = getFrontendBaseUrl();
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     if (!env.RESEND_API_KEY) {
       logger.info(`[MOCK EMAIL] Password reset email to ${email}. Link: ${resetLink}`);
-      return true;
+      return { sent: false, error: 'Email service (RESEND_API_KEY) is not configured on the server.' };
     }
 
-    await resend.emails.send({
-      from: 'AutoApply AI <onboarding@resend.dev>',
+    const { data, error } = await resend.emails.send({
+      from: DEFAULT_FROM,
       to: email,
       subject: 'Reset your password for AutoApply AI',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #4f46e5;">Hello, ${fullName}</h2>
+          <h2 style="color: #4f46e5;">Hello, ${fullName || 'there'}</h2>
           <p>We received a request to reset your password. Click the button below to choose a new password:</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${resetLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
@@ -67,9 +82,16 @@ export async function sendPasswordResetEmail(email: string, fullName: string, to
         </div>
       `,
     });
-    return true;
-  } catch (error) {
+
+    if (error) {
+      logger.error('Resend rejected password reset email', error);
+      return { sent: false, error: error.message || 'Email delivery rejected by Resend' };
+    }
+
+    logger.info(`Password reset email sent to ${email} (id: ${data?.id})`);
+    return { sent: true, id: data?.id };
+  } catch (error: any) {
     logger.error('Failed to send password reset email', error);
-    return false;
+    return { sent: false, error: error?.message || 'Failed to send password reset email' };
   }
 }

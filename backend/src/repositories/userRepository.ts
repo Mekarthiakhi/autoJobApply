@@ -36,7 +36,7 @@ export class UserRepository {
 
   async findByEmail(email: string): Promise<User | null> {
     const db = await getDatabase();
-    const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
+    const user = await db.get(`SELECT * FROM users WHERE LOWER(email) = LOWER(?)`, [email.trim()]);
     if (!user) return null;
     return {
       ...user,

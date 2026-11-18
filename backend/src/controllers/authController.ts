@@ -175,14 +175,13 @@ export async function forgotPassword(req: Request, res: Response) {
   try {
     const { email } = req.body;
     
-    if (!email) {
+    if (!email || !String(email).trim()) {
       throw new AppError(400, 'Email is required');
     }
 
-    const user = await userRepository.findByEmail(email);
+    const user = await userRepository.findByEmail(String(email).trim());
     if (!user) {
-      // Return success even if user not found to prevent email enumeration
-      return res.json({ message: 'If an account exists, a password reset link has been sent.' });
+      throw new AppError(404, 'No account found with this email address.');
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -193,9 +192,16 @@ export async function forgotPassword(req: Request, res: Response) {
       reset_token_expires: resetTokenExpires
     } as any);
 
-    await sendPasswordResetEmail(user.email, user.full_name, resetToken);
+    const emailResult = await sendPasswordResetEmail(user.email, user.full_name, resetToken);
 
-    res.json({ message: 'If an account exists, a password reset link has been sent.' });
+    if (!emailResult.sent) {
+      throw new AppError(
+        502,
+        `Password reset email could not be delivered: ${emailResult.error || 'Email provider rejected the request.'}`
+      );
+    }
+
+    res.json({ message: 'A password reset link has been sent to your email. Please check your inbox.' });
   } catch (error) {
     if (error instanceof AppError) {
       res.status(error.statusCode).json({ error: error.message });

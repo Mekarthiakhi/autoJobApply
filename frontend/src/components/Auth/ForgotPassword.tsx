@@ -19,7 +19,7 @@ export const ForgotPassword: React.FC = () => {
       const response = await authAPI.forgotPassword(email.trim());
       setSubmittedMessage(
         response.data?.message ||
-          'If an account exists for that email, a password reset link has been sent.'
+          'A password reset link has been sent to your email.'
       );
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send password reset instructions.');
