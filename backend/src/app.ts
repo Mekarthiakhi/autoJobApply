@@ -189,17 +189,38 @@ async function startServer() {
 
   await initializeDatabase();
 
-  // If brand-new database or jobs table is empty, auto-seed Akhilesh Mekarthi's candidate profile & demo applications
-  try {
-    const sql = await getDatabase();
-    const jobRow = await sql.get<{ count: number }>('SELECT count(*) as count FROM jobs');
-    if (!jobRow || jobRow.count === 0) {
-      logger.info('🌱 Database has 0 jobs. Auto-seeding initial candidate profile, target jobs, and review queue...');
-      const { seedAkhileshCandidate } = await import('./scripts/processAkhileshPipeline.js');
-      await seedAkhileshCandidate();
+  // Remove auto-seeded demo account (only if still using the default seeded password)
+  // so users can register fresh with their own email and password
+  if (process.env.ENABLE_DEMO_SEED !== 'true') {
+    try {
+      const sql = await getDatabase();
+      const seededUser = await sql.get<{ id: string; password_hash: string }>(
+        `SELECT id, password_hash FROM users WHERE LOWER(email) = 'akhileshmekarthi28@gmail.com'`
+      );
+      if (seededUser) {
+        const { comparePassword } = await import('./utils/encryption.js');
+        const isDefaultSeededAccount = await comparePassword('TestPassword123!', seededUser.password_hash);
+        if (isDefaultSeededAccount) {
+          await sql.run('DELETE FROM users WHERE id = ?', [seededUser.id]);
+          logger.info('🧹 Removed pre-seeded demo account akhileshmekarthi28@gmail.com for clean registration');
+        }
+      }
+    } catch (cleanupErr) {
+      logger.warn('Seeded account cleanup skipped:', cleanupErr);
     }
-  } catch (seedErr) {
-    logger.warn('Initial seeding skipped or encountered non-fatal error:', seedErr);
+  } else {
+    // Opt-in demo seeding only when ENABLE_DEMO_SEED=true
+    try {
+      const sql = await getDatabase();
+      const jobRow = await sql.get<{ count: number }>('SELECT count(*) as count FROM jobs');
+      if (!jobRow || jobRow.count === 0) {
+        logger.info('🌱 Database has 0 jobs. Auto-seeding initial candidate profile, target jobs, and review queue...');
+        const { seedAkhileshCandidate } = await import('./scripts/processAkhileshPipeline.js');
+        await seedAkhileshCandidate();
+      }
+    } catch (seedErr) {
+      logger.warn('Initial seeding skipped or encountered non-fatal error:', seedErr);
+    }
   }
 
   // Conditionally initialize background cron jobs

@@ -17,20 +17,21 @@ export async function register(req: Request, res: Response) {
       throw new AppError(400, 'Email, password, and full name are required');
     }
 
-    const existing = await userRepository.findByEmail(email);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await userRepository.findByEmail(normalizedEmail);
     if (existing) {
-      throw new AppError(400, 'User already exists');
+      throw new AppError(400, 'An account with this email already exists');
     }
 
     const passwordHash = await hashPassword(password);
     const verificationToken = crypto.randomBytes(32).toString('hex');
     
-    const user = await userRepository.create(email, passwordHash, fullName, verificationToken);
+    const user = await userRepository.create(normalizedEmail, passwordHash, fullName, verificationToken);
 
-    // Send the verification email (logs mock in development/staging)
-    await sendVerificationEmail(user.email, user.full_name, verificationToken);
+    // Send the verification email if email provider is configured & verified
+    const emailResult = await sendVerificationEmail(user.email, user.full_name, verificationToken);
 
-    const autoVerify = process.env.NODE_ENV !== 'production' || !process.env.RESEND_API_KEY;
+    const autoVerify = process.env.REQUIRE_EMAIL_VERIFICATION !== 'true' || !emailResult.sent;
     if (autoVerify) {
       await userRepository.update(user.id, { is_verified: true, verification_token: null });
       user.is_verified = true;
@@ -143,7 +144,7 @@ export async function login(req: Request, res: Response) {
     }
 
     if (!user.is_verified) {
-      const autoVerify = process.env.NODE_ENV !== 'production' || !process.env.RESEND_API_KEY;
+      const autoVerify = process.env.REQUIRE_EMAIL_VERIFICATION !== 'true';
       if (autoVerify) {
         await userRepository.update(user.id, { is_verified: true, verification_token: null });
         user.is_verified = true;
