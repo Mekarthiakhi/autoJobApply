@@ -18,13 +18,13 @@ const jobRepo = new JobRepository();
 
 export const akhileshResumeData: StructuredResume = {
   basics: {
-    fullName: 'Akhilesh Mekarthi',
-    email: 'akhileshmekarthi28@gmail.com',
-    phone: '+91-7347234445',
-    location: 'Hyderabad, India',
-    linkedinUrl: 'https://linkedin.com/in/akhilesh-mekarthi-a62501227',
-    githubUrl: 'https://github.com/Mekarthiakhi',
-    portfolioUrl: 'https://my-portfolio-snowygamma-20.vercel.app',
+    fullName: process.env.DEMO_SEED_NAME || 'Alex Rivera',
+    email: process.env.DEMO_SEED_EMAIL || 'demo.candidate@example.com',
+    phone: '+1-555-010-2026',
+    location: 'Remote',
+    linkedinUrl: 'https://linkedin.com/in/example-developer',
+    githubUrl: 'https://github.com/example-developer',
+    portfolioUrl: 'https://portfolio.example.com',
     title: 'React Developer – React.js, Redux & JavaScript',
     summary: 'React Developer with 2+ years of professional web development experience building clean, scalable, reusable user interface components with React.js and strong JavaScript (ES6+) fundamentals, including Redux workflows and Context API. Experienced implementing UI designs to project requirements, integrating front ends with back-end services (Node.js, REST APIs), and applying web performance optimization techniques (30% faster response times). Writes and maintains Jest tests and clear technical documentation, works closely with QA to resolve defects, and collaborates with designers, product owners, and back-end developers in Agile/Scrum teams using Git, Vite, and code reviews. Strong problem-solving skills and clear communication of technical concepts to non-technical stakeholders.',
   },

@@ -5,6 +5,7 @@ import { generateToken } from '../utils/jwt.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getDatabase } from '../config/database.js';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../utils/email.js';
+import { extractMobilePhoneFromResume, normalizePhoneNumber } from '../utils/phoneExtractor.js';
 import crypto from 'crypto';
 
 const userRepository = new UserRepository();
@@ -263,9 +264,23 @@ export async function getProfile(req: Request, res: Response) {
 
     const db = await getDatabase();
     const settings = await db.get(
-      `SELECT telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled, whatsapp_enabled, whatsapp_phone, whatsapp_api_key FROM automation_settings WHERE user_id = ?`,
+      `SELECT telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled,
+              whatsapp_enabled, whatsapp_phone, whatsapp_api_key,
+              imap_enabled, imap_email, imap_password, imap_host
+       FROM automation_settings WHERE user_id = ?`,
       [userId]
     );
+
+    let whatsappPhone = settings?.whatsapp_phone || '';
+    if (!whatsappPhone) {
+      const resumeRow = await db.get<{ text_content: string }>(
+        `SELECT text_content FROM resumes WHERE user_id = ? LIMIT 1`,
+        [userId]
+      );
+      if (resumeRow?.text_content) {
+        whatsappPhone = extractMobilePhoneFromResume(resumeRow.text_content) || '';
+      }
+    }
 
     let parsedLocs: string[] = ['Remote'];
     if (user.preferred_locations) {
@@ -293,8 +308,12 @@ export async function getProfile(req: Request, res: Response) {
       emailEnabled: settings ? settings.email_notifications === 1 : true,
       autoApplyEnabled: settings ? settings.auto_apply_enabled !== 0 : true,
       whatsappEnabled: settings?.whatsapp_enabled === 1,
-      whatsappPhone: settings?.whatsapp_phone || '',
+      whatsappPhone,
       whatsappApiKey: settings?.whatsapp_api_key || '',
+      imapEnabled: settings?.imap_enabled === 1,
+      imapEmail: settings?.imap_email || user.email,
+      imapHost: settings?.imap_host || 'imap.gmail.com',
+      imapPasswordConfigured: Boolean(settings?.imap_password),
     });
   } catch (error) {
     if (error instanceof AppError) {
@@ -323,6 +342,10 @@ export async function updateProfile(req: Request, res: Response) {
       whatsappEnabled,
       whatsappPhone,
       whatsappApiKey,
+      imapEnabled,
+      imapEmail,
+      imapPassword,
+      imapHost,
     } = req.body;
 
     const locsJson = Array.isArray(preferredLocations)
@@ -338,14 +361,29 @@ export async function updateProfile(req: Request, res: Response) {
     } as any);
 
     const db = await getDatabase();
+    const existingSettings = await db.get<{ imap_password: string | null }>(
+      `SELECT imap_password FROM automation_settings WHERE user_id = ?`,
+      [userId]
+    );
+
     const tEnabled = telegramEnabled ? 1 : 0;
     const eEnabled = emailEnabled === false ? 0 : 1;
     const aEnabled = autoApplyEnabled === false ? 0 : 1;
     const wEnabled = whatsappEnabled ? 1 : 0;
+    const iEnabled = imapEnabled ? 1 : 0;
+    const cleanPhone = normalizePhoneNumber(whatsappPhone || '');
+    const finalImapPassword =
+      typeof imapPassword === 'string' && imapPassword.trim().length > 0
+        ? imapPassword.replace(/\s+/g, '')
+        : (existingSettings?.imap_password || '');
     
     await db.run(
-      `INSERT INTO automation_settings (user_id, telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled, whatsapp_enabled, whatsapp_phone, whatsapp_api_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO automation_settings (
+         user_id, telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled,
+         whatsapp_enabled, whatsapp_phone, whatsapp_api_key,
+         imap_enabled, imap_email, imap_password, imap_host
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (user_id) DO UPDATE SET
          telegram_enabled = excluded.telegram_enabled,
          telegram_chat_id = excluded.telegram_chat_id,
@@ -354,8 +392,25 @@ export async function updateProfile(req: Request, res: Response) {
          whatsapp_enabled = excluded.whatsapp_enabled,
          whatsapp_phone = excluded.whatsapp_phone,
          whatsapp_api_key = excluded.whatsapp_api_key,
+         imap_enabled = excluded.imap_enabled,
+         imap_email = excluded.imap_email,
+         imap_password = excluded.imap_password,
+         imap_host = excluded.imap_host,
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, tEnabled, telegramChatId || '', eEnabled, aEnabled, wEnabled, whatsappPhone || '', whatsappApiKey || '']
+      [
+        userId,
+        tEnabled,
+        telegramChatId || '',
+        eEnabled,
+        aEnabled,
+        wEnabled,
+        cleanPhone,
+        (whatsappApiKey || '').trim(),
+        iEnabled,
+        (imapEmail || user.email || '').trim(),
+        finalImapPassword,
+        (imapHost || 'imap.gmail.com').trim(),
+      ]
     );
 
     res.json({
@@ -370,8 +425,12 @@ export async function updateProfile(req: Request, res: Response) {
       emailEnabled: Boolean(eEnabled),
       autoApplyEnabled: Boolean(aEnabled),
       whatsappEnabled: Boolean(wEnabled),
-      whatsappPhone: whatsappPhone || '',
-      whatsappApiKey: whatsappApiKey || '',
+      whatsappPhone: cleanPhone,
+      whatsappApiKey: (whatsappApiKey || '').trim(),
+      imapEnabled: Boolean(iEnabled),
+      imapEmail: (imapEmail || user.email || '').trim(),
+      imapHost: (imapHost || 'imap.gmail.com').trim(),
+      imapPasswordConfigured: Boolean(finalImapPassword),
     });
   } catch (error) {
     if (error instanceof AppError) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { authAPI, resumeAPI } from '../../api/auth';
-import { Save } from 'lucide-react';
+import { authAPI, resumeAPI, applicationsAPI } from '../../api/auth';
+import { Save, Send } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 export const Settings: React.FC = () => {
@@ -16,6 +16,12 @@ export const Settings: React.FC = () => {
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [whatsappApiKey, setWhatsappApiKey] = useState('');
+  const [imapEnabled, setImapEnabled] = useState(false);
+  const [imapEmail, setImapEmail] = useState('');
+  const [imapPassword, setImapPassword] = useState('');
+  const [imapPasswordConfigured, setImapPasswordConfigured] = useState(false);
+  const [imapHost, setImapHost] = useState('imap.gmail.com');
+  const [sendingTest, setSendingTest] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -50,6 +56,10 @@ export const Settings: React.FC = () => {
         if (profile.whatsappEnabled !== undefined) setWhatsappEnabled(Boolean(profile.whatsappEnabled));
         if (profile.whatsappPhone) setWhatsappPhone(profile.whatsappPhone);
         if (profile.whatsappApiKey) setWhatsappApiKey(profile.whatsappApiKey);
+        if (profile.imapEnabled !== undefined) setImapEnabled(Boolean(profile.imapEnabled));
+        if (profile.imapEmail) setImapEmail(profile.imapEmail);
+        if (profile.imapHost) setImapHost(profile.imapHost);
+        if (profile.imapPasswordConfigured) setImapPasswordConfigured(true);
         if (resumeRes.data?.file_name) setCurrentResumeName(resumeRes.data.file_name);
       } catch (error) {
         console.error('Failed to fetch profile', error);
@@ -72,7 +82,15 @@ export const Settings: React.FC = () => {
         whatsappEnabled,
         whatsappPhone,
         whatsappApiKey,
+        imapEnabled,
+        imapEmail,
+        imapPassword: imapPassword || undefined,
+        imapHost,
       });
+      if (imapPassword) {
+        setImapPasswordConfigured(true);
+        setImapPassword('');
+      }
       setSaveMessage('Settings saved successfully.');
       toast.success('Settings saved successfully.');
       setTimeout(() => setSaveMessage(null), 3000);
@@ -103,6 +121,32 @@ export const Settings: React.FC = () => {
       toast.error(err?.response?.data?.error || 'Failed to upload resume.');
     } finally {
       setUploadingResume(false);
+    }
+  };
+
+  const handleSendTestReport = async () => {
+    try {
+      setSendingTest(true);
+      const res = await applicationsAPI.sendTestReport({
+        phone: whatsappPhone,
+        apiKey: whatsappApiKey,
+      });
+      const emailOk = res.data?.email?.sent;
+      const waOk = res.data?.whatsapp?.sent;
+      if (emailOk && waOk) {
+        toast.success(`Test report delivered to ${res.data.email.to} AND WhatsApp (${res.data.whatsapp.phone})!`);
+      } else if (emailOk) {
+        toast.success(`Test report emailed to ${res.data.email.to}!${res.data?.whatsapp?.phone ? ` Detected WhatsApp: ${res.data.whatsapp.phone}` : ''}`);
+        if (!waOk && res.data?.whatsapp?.whatsappShareUrl) {
+          window.open(res.data.whatsapp.whatsappShareUrl, '_blank', 'noopener,noreferrer');
+        }
+      } else {
+        toast.error(res.data?.email?.error || 'Could not deliver test email');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to send test report');
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -233,8 +277,12 @@ export const Settings: React.FC = () => {
 
           <div className="toggle-row" style={{ borderBottom: whatsappEnabled ? 'none' : undefined }}>
             <div className="toggle-info">
-              <div className="toggle-name">WhatsApp Reports (CallMeBot Free API)</div>
-              <div className="toggle-desc">Automatically message your WhatsApp after every hourly run with verified proof &amp; links</div>
+              <div className="toggle-name">WhatsApp Reports (Auto-Extracted Phone)</div>
+              <div className="toggle-desc">
+                {whatsappPhone
+                  ? `Active mobile from resume/settings: ${whatsappPhone} · pushes hourly verified reports`
+                  : 'Automatically extracts mobile number from your uploaded resume & pushes hourly reports'}
+              </div>
             </div>
             <div className={`toggle ${whatsappEnabled ? 'on' : ''}`} onClick={() => setWhatsappEnabled(!whatsappEnabled)}>
               <div className="toggle-dot"></div>
@@ -242,9 +290,9 @@ export const Settings: React.FC = () => {
           </div>
 
           {whatsappEnabled && (
-            <div style={{ marginTop: '10px', padding: '12px', borderRadius: '10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.22)' }}>
+            <div style={{ marginTop: '10px', marginBottom: '12px', padding: '12px', borderRadius: '10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.22)' }}>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginBottom: '10px', lineHeight: 1.5 }}>
-                Free 30-second setup: Save <strong>+34 644 71 98 39</strong> on WhatsApp, send{' '}
+                Free 30-second auto-push setup: Save <strong>+34 644 71 98 39</strong> on WhatsApp, send{' '}
                 <code style={{ color: '#4ade80' }}>I allow callmebot to send me messages</code>, then paste your number &amp; API key below:
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -261,6 +309,47 @@ export const Settings: React.FC = () => {
                   placeholder="CallMeBot API Key"
                   value={whatsappApiKey}
                   onChange={(e) => setWhatsappApiKey(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="toggle-row" style={{ borderBottom: imapEnabled ? 'none' : undefined }}>
+            <div className="toggle-info">
+              <div className="toggle-name">Company Reply Inbox Tracker (Gmail / IMAP)</div>
+              <div className="toggle-desc">Read-only inbox scan every hour to detect company confirmation emails, interview invites &amp; rejections</div>
+            </div>
+            <div className={`toggle ${imapEnabled ? 'on' : ''}`} onClick={() => setImapEnabled(!imapEnabled)}>
+              <div className="toggle-dot"></div>
+            </div>
+          </div>
+
+          {imapEnabled && (
+            <div style={{ marginTop: '10px', padding: '12px', borderRadius: '10px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)' }}>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginBottom: '10px', lineHeight: 1.5 }}>
+                For Gmail: enable 2-Step Verification → create an <strong>App Password</strong> under Google Account Security and paste it below (strictly read-only):
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="email"
+                  className="neumo-input"
+                  placeholder="Inbox Email"
+                  value={imapEmail}
+                  onChange={(e) => setImapEmail(e.target.value)}
+                />
+                <input
+                  type="password"
+                  className="neumo-input"
+                  placeholder={imapPasswordConfigured ? 'App Password saved (leave blank to keep)' : '16-char Gmail App Password'}
+                  value={imapPassword}
+                  onChange={(e) => setImapPassword(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="neumo-input"
+                  placeholder="imap.gmail.com"
+                  value={imapHost}
+                  onChange={(e) => setImapHost(e.target.value)}
                 />
               </div>
             </div>
@@ -298,10 +387,16 @@ export const Settings: React.FC = () => {
         </div>
       )}
 
-      <button className="save-btn" onClick={handleSave} disabled={saving}>
-        <Save size={15} />
-        {saving ? 'Saving...' : 'Save settings'}
-      </button>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button className="save-btn" onClick={handleSave} disabled={saving}>
+          <Save size={15} />
+          {saving ? 'Saving...' : 'Save settings'}
+        </button>
+        <button className="neumo-btn" onClick={handleSendTestReport} disabled={sendingTest}>
+          <Send size={14} />
+          {sendingTest ? 'Sending Test...' : 'Send Test Report (Email + WhatsApp)'}
+        </button>
+      </div>
     </div>
   );
 };

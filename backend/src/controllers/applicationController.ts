@@ -4,6 +4,9 @@ import { AppError } from '../middleware/errorHandler.js';
 import { getDatabase } from '../config/database.js';
 import { externalSubmitter } from '../services/externalSubmitter.js';
 import { whatsappService } from '../services/whatsappService.js';
+import { companyReplyTracker } from '../services/companyReplyTracker.js';
+import { sendApplicationRunSummaryEmail } from '../utils/email.js';
+import { extractMobilePhoneFromResume, normalizePhoneNumber } from '../utils/phoneExtractor.js';
 
 const applicationRepository = new ApplicationRepository();
 
@@ -220,6 +223,11 @@ export async function sendWhatsAppSummary(req: Request, res: Response) {
       `SELECT whatsapp_phone, whatsapp_api_key FROM automation_settings WHERE user_id = ?`,
       [userId]
     );
+    let resolvedPhone = normalizePhoneNumber(req.body?.phone || settings?.whatsapp_phone || '');
+    if (!resolvedPhone) {
+      const resRow = await db.get<{ text_content: string }>(`SELECT text_content FROM resumes WHERE user_id = ? LIMIT 1`, [userId]);
+      if (resRow?.text_content) resolvedPhone = extractMobilePhoneFromResume(resRow.text_content) || '';
+    }
 
     const appUrl = (process.env.FRONTEND_URL || 'https://autojobapply-production-69da9ff5.up.railway.app').replace(/\/$/, '');
     const items = apps.slice(0, 10).map((a: any) => ({
@@ -232,16 +240,102 @@ export async function sendWhatsAppSummary(req: Request, res: Response) {
 
     const message = whatsappService.buildRunSummaryMessage(items, appUrl);
     const result = await whatsappService.sendMessage(message, {
-      phone: req.body?.phone || settings?.whatsapp_phone,
+      phone: resolvedPhone,
       apiKey: req.body?.apiKey || settings?.whatsapp_api_key,
     });
 
     res.json({
       ...result,
+      phone: resolvedPhone,
       message,
-      whatsappShareUrl: `https://wa.me/${(req.body?.phone || settings?.whatsapp_phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`,
+      whatsappShareUrl: `https://wa.me/${resolvedPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`,
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to send WhatsApp summary' });
+  }
+}
+
+export async function checkCompanyReplies(req: Request, res: Response) {
+  try {
+    const userId = req.userId;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const result = await companyReplyTracker.checkUserReplies(userId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check company replies' });
+  }
+}
+
+export async function sendTestReport(req: Request, res: Response) {
+  try {
+    const userId = req.userId;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const db = await getDatabase();
+    const user = await db.get<{ email: string; full_name: string }>(
+      `SELECT email, full_name FROM users WHERE id = ?`,
+      [userId]
+    );
+    if (!user) throw new AppError(404, 'User not found');
+
+    const apps = await applicationRepository.findByUserId(userId);
+    const settings = await db.get<{ whatsapp_phone: string | null; whatsapp_api_key: string | null }>(
+      `SELECT whatsapp_phone, whatsapp_api_key FROM automation_settings WHERE user_id = ?`,
+      [userId]
+    );
+
+    let resolvedPhone = normalizePhoneNumber(req.body?.phone || settings?.whatsapp_phone || '');
+    if (!resolvedPhone) {
+      const resRow = await db.get<{ text_content: string }>(`SELECT text_content FROM resumes WHERE user_id = ? LIMIT 1`, [userId]);
+      if (resRow?.text_content) resolvedPhone = extractMobilePhoneFromResume(resRow.text_content) || '';
+    }
+
+    const reportItems = (apps.length > 0 ? apps.slice(0, 8) : [
+      {
+        job_title: 'Test Verification Item (Run AI Discovery to populate live roles)',
+        company_name: 'AutoApply AI',
+        match_score: 100,
+        external_status: 'AI_PREPARED',
+        apply_url: process.env.FRONTEND_URL || 'https://autojobapply-production-69da9ff5.up.railway.app',
+        notes: 'This confirms your Email & WhatsApp notification channels are connected.',
+      },
+    ]).map((a: any) => {
+      let proof: any = {};
+      try { if (a.submission_proof) proof = JSON.parse(a.submission_proof); } catch {}
+      return {
+        jobTitle: a.job_title || a.title || 'Software Role',
+        companyName: a.company_name || 'Company',
+        matchScore: Math.round(a.match_score || 0),
+        externalStatus: a.external_status || 'AI_PREPARED',
+        applyUrl: proof.finalUrl || a.apply_url,
+        reason: proof.confirmationText || proof.reason || a.notes || '',
+        atsPlatform: proof.atsPlatform || a.source || '',
+      };
+    });
+
+    const emailResult = await sendApplicationRunSummaryEmail(user.email, user.full_name, reportItems);
+
+    const appUrl = (process.env.FRONTEND_URL || 'https://autojobapply-production-69da9ff5.up.railway.app').replace(/\/$/, '');
+    const waMessage = whatsappService.buildRunSummaryMessage(reportItems, appUrl);
+    const waResult = await whatsappService.sendMessage(waMessage, {
+      phone: resolvedPhone,
+      apiKey: req.body?.apiKey || settings?.whatsapp_api_key,
+    });
+
+    res.json({
+      email: { ...emailResult, to: user.email },
+      whatsapp: {
+        ...waResult,
+        phone: resolvedPhone,
+        whatsappShareUrl: `https://wa.me/${resolvedPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMessage)}`,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to send test report' });
+    }
   }
 }

@@ -37,7 +37,7 @@ export async function sendMail({ to, subject, html, replyTo }: MailPayload): Pro
   const brevoKey = process.env.BREVO_API_KEY || env.BREVO_API_KEY;
   if (brevoKey) {
     try {
-      const senderEmail = process.env.EMAIL_FROM || env.EMAIL_FROM || process.env.SMTP_USER || 'akhileshmekarthi74@gmail.com';
+      const senderEmail = process.env.EMAIL_FROM || env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@autoapply.local';
       const senderMatch = senderEmail.match(/<(.+)>/);
       const cleanSenderEmail = senderMatch ? senderMatch[1] : senderEmail;
       const body: Record<string, any> = {

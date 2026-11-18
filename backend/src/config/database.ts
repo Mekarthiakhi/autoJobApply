@@ -288,9 +288,17 @@ export async function initializeDatabase() {
     `ALTER TABLE applications ADD COLUMN external_status VARCHAR(50) DEFAULT 'AI_PREPARED'`,
     `ALTER TABLE applications ADD COLUMN submission_proof TEXT`,
     `ALTER TABLE applications ADD COLUMN verified_at DATETIME`,
+    `ALTER TABLE applications ADD COLUMN company_reply_status VARCHAR(50)`,
+    `ALTER TABLE applications ADD COLUMN company_reply_subject VARCHAR(300)`,
+    `ALTER TABLE applications ADD COLUMN company_reply_from VARCHAR(255)`,
+    `ALTER TABLE applications ADD COLUMN company_reply_at DATETIME`,
     `ALTER TABLE automation_settings ADD COLUMN whatsapp_enabled INTEGER DEFAULT 0`,
     `ALTER TABLE automation_settings ADD COLUMN whatsapp_phone VARCHAR(50)`,
     `ALTER TABLE automation_settings ADD COLUMN whatsapp_api_key VARCHAR(255)`,
+    `ALTER TABLE automation_settings ADD COLUMN imap_enabled INTEGER DEFAULT 0`,
+    `ALTER TABLE automation_settings ADD COLUMN imap_email VARCHAR(255)`,
+    `ALTER TABLE automation_settings ADD COLUMN imap_password VARCHAR(255)`,
+    `ALTER TABLE automation_settings ADD COLUMN imap_host VARCHAR(255) DEFAULT 'imap.gmail.com'`,
   ];
   for (const stmt of alterStatements) {
     try { await sql.exec(stmt); } catch { /* column already exists */ }

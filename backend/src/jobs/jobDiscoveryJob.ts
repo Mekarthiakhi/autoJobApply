@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { getDatabase } from '../config/database.js';
 import { multiAgentPipelineOrchestrator } from '../agents/orchestratorPipeline.js';
 import { jobLifecycleManager } from '../discovery/jobLifecycleManager.js';
+import { companyReplyTracker } from '../services/companyReplyTracker.js';
 
 export async function executeDiscoveryRun(): Promise<{ usersProcessed: number; jobsDiscovered: number; newJobsFound: number; applicationsProcessed: number; staleCount: number; expiredCount: number }> {
   logger.info('⏰ [HourlyAutoApply] Starting scheduled 1-hour multi-agent discovery & auto-apply run...');
@@ -26,6 +27,8 @@ export async function executeDiscoveryRun(): Promise<{ usersProcessed: number; j
         usersProcessed++;
         jobsDiscovered += summary.jobsDiscovered;
         applicationsProcessed += summary.draftsQueuedForReview;
+        // Also check company replies in user's inbox if IMAP reply tracking is enabled
+        await companyReplyTracker.checkUserReplies(row.user_id).catch(() => {});
       } catch (userErr: any) {
         logger.error(`Hourly auto-apply pipeline failed for user ${row.user_id}`, userErr);
       }

@@ -65,6 +65,9 @@ export const applicationsAPI = {
     client.post(`/applications/${applicationId}/confirm-applied`),
   notifyWhatsApp: (data?: { phone?: string; apiKey?: string }) =>
     client.post('/applications/notify-whatsapp', data || {}),
+  checkReplies: () => client.post('/applications/check-replies'),
+  sendTestReport: (data?: { phone?: string; apiKey?: string }) =>
+    client.post('/applications/send-test-report', data || {}),
 };
 
 export const dashboardAPI = {

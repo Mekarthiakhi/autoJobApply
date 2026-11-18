@@ -45,6 +45,7 @@ function isExternallyVerified(app: any): boolean {
   return (
     s === 'VERIFIED_ATS_SUBMITTED' ||
     s === 'VERIFIED_EMAIL_SENT' ||
+    s === 'VERIFIED_COMPANY_EMAIL_CONFIRMED' ||
     s === 'USER_CONFIRMED_APPLIED'
   );
 }
@@ -58,6 +59,8 @@ export const ApplicationsList: React.FC = () => {
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [checkingReplies, setCheckingReplies] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
 
   const fetchApplications = async () => {
     try {
@@ -130,15 +133,57 @@ export const ApplicationsList: React.FC = () => {
     try {
       const res = await applicationsAPI.notifyWhatsApp();
       if (res.data?.sent) {
-        toast.success('WhatsApp summary sent automatically to your phone!');
+        toast.success(`WhatsApp summary sent automatically to ${res.data.phone || 'your phone'}!`);
       } else if (res.data?.whatsappShareUrl) {
         window.open(res.data.whatsappShareUrl, '_blank', 'noopener,noreferrer');
-        toast.info('Opened WhatsApp with your verified application summary. Add your CallMeBot key in Settings for automatic hourly WhatsApp messages.');
+        toast.info('Opened WhatsApp pre-filled with your resume phone & report. Add your CallMeBot key in Settings for automatic hourly WhatsApp messages.');
       }
     } catch (err: any) {
       toast.error('Failed to build WhatsApp summary');
     } finally {
       setSendingWhatsApp(false);
+    }
+  };
+
+  const handleCheckReplies = async () => {
+    setCheckingReplies(true);
+    try {
+      const res = await applicationsAPI.checkReplies();
+      if (!res.data?.checked) {
+        toast.info(res.data?.error || 'Configure Gmail/IMAP App Password in Settings → Company Reply Tracker to auto-detect company emails.');
+      } else {
+        await fetchApplications();
+        const count = res.data?.matchesFound?.length || 0;
+        toast.success(
+          count > 0
+            ? `Scanned ${res.data.messagesScanned} emails — found ${count} company confirmation/reply match(es)!`
+            : `Scanned ${res.data.messagesScanned} recent emails — no new company replies yet.`
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to check company replies');
+    } finally {
+      setCheckingReplies(false);
+    }
+  };
+
+  const handleSendTestReport = async () => {
+    setSendingReport(true);
+    try {
+      const res = await applicationsAPI.sendTestReport();
+      const emailOk = res.data?.email?.sent;
+      const waOk = res.data?.whatsapp?.sent;
+      if (emailOk && waOk) {
+        toast.success(`Report sent to ${res.data.email.to} AND WhatsApp (${res.data.whatsapp.phone})!`);
+      } else if (emailOk) {
+        toast.success(`Report emailed to ${res.data.email.to}!${res.data?.whatsapp?.phone ? ` (WhatsApp phone: ${res.data.whatsapp.phone} — add CallMeBot key in Settings for auto-push)` : ''}`);
+      } else {
+        toast.error(res.data?.email?.error || 'Report email could not be sent.');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to send report');
+    } finally {
+      setSendingReport(false);
     }
   };
 
@@ -161,6 +206,15 @@ export const ApplicationsList: React.FC = () => {
 
   const getBadge = (app: any) => {
     const ext = app.external_status || '';
+    if (ext === 'VERIFIED_COMPANY_EMAIL_CONFIRMED') {
+      return {
+        label: 'Company Confirmed (Email)',
+        color: '#34d399',
+        bg: 'rgba(16, 185, 129, 0.16)',
+        border: 'rgba(16, 185, 129, 0.45)',
+        icon: <Mail size={13} />,
+      };
+    }
     if (ext === 'VERIFIED_ATS_SUBMITTED') {
       return {
         label: 'Verified Applied (ATS)',
@@ -234,6 +288,23 @@ export const ApplicationsList: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={handleCheckReplies}
+            disabled={checkingReplies}
+            className="neumo-btn"
+            style={{ borderColor: 'rgba(99, 102, 241, 0.4)', color: '#a5b4fc' }}
+          >
+            <Mail size={15} />
+            {checkingReplies ? 'Scanning Inbox...' : 'Check Company Replies'}
+          </button>
+          <button
+            onClick={handleSendTestReport}
+            disabled={sendingReport}
+            className="neumo-btn"
+          >
+            <ShieldCheck size={15} />
+            {sendingReport ? 'Sending...' : 'Email + WA Report'}
+          </button>
           <button
             onClick={handleSendWhatsApp}
             disabled={sendingWhatsApp || applications.length === 0}
@@ -348,6 +419,30 @@ export const ApplicationsList: React.FC = () => {
                       <p className="text-xs text-gray-300 mt-2 leading-relaxed">
                         {proof.confirmationText || proof.reason || app.notes}
                       </p>
+                    )}
+                    {app.company_reply_status && (
+                      <div
+                        className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg text-xs"
+                        style={{
+                          background:
+                            app.company_reply_status === 'INTERVIEW_INVITE'
+                              ? 'rgba(16, 185, 129, 0.16)'
+                              : app.company_reply_status === 'REJECTED'
+                              ? 'rgba(239, 68, 68, 0.14)'
+                              : 'rgba(99, 102, 241, 0.14)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color:
+                            app.company_reply_status === 'INTERVIEW_INVITE'
+                              ? '#34d399'
+                              : app.company_reply_status === 'REJECTED'
+                              ? '#f87171'
+                              : '#c7d2fe',
+                        }}
+                      >
+                        <Mail size={12} />
+                        <strong>{app.company_reply_status.replace(/_/g, ' ')}:</strong>
+                        <span className="truncate max-w-md">{app.company_reply_subject}</span>
+                      </div>
                     )}
                   </div>
                 </div>

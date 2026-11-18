@@ -2,6 +2,7 @@ import { getDatabase } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { candidateExtractor } from '../resumes/candidateExtractor.js';
 import { StructuredResume } from '../resumes/types.js';
+import { extractMobilePhoneFromResume } from '../utils/phoneExtractor.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface ResumeData {
@@ -117,6 +118,24 @@ export class ResumeService {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
           [uuidv4(), userId, cleanLabel, fileName, textContent, skillsJson, builderDataJson, nextVersion]
         );
+      }
+
+      // Auto-extract mobile number from resume into WhatsApp settings if not already configured by user
+      const extractedPhone = extractMobilePhoneFromResume(textContent);
+      if (extractedPhone) {
+        await db.run(
+          `INSERT INTO automation_settings (user_id, auto_apply_enabled, auto_apply_threshold, email_notifications, whatsapp_phone)
+           VALUES (?, 1, 55, 1, ?)
+           ON CONFLICT (user_id) DO UPDATE SET
+             whatsapp_phone = CASE
+               WHEN automation_settings.whatsapp_phone IS NULL OR TRIM(automation_settings.whatsapp_phone) = ''
+               THEN excluded.whatsapp_phone
+               ELSE automation_settings.whatsapp_phone
+             END,
+             updated_at = CURRENT_TIMESTAMP`,
+          [userId, extractedPhone]
+        );
+        logger.info(`📱 Auto-extracted WhatsApp mobile number from resume for user ${userId}`);
       }
     } catch (syncErr) {
       logger.warn('Failed to sync uploaded resume into resume_versions', syncErr);
