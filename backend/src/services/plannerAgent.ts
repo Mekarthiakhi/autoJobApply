@@ -34,7 +34,7 @@ export class PlannerAgent {
       minSalary: settings.min_salary,
       maxExperience: settings.max_experience,
       preferredPlatforms: this.parseJsonArray(settings.preferred_platforms),
-      autoRankThreshold: settings.auto_rank_threshold,
+      autoRankThreshold: settings.auto_rank_threshold && settings.auto_rank_threshold !== 70 ? settings.auto_rank_threshold : 55,
     };
 
     // Dynamically derive target roles & locations from uploaded resume & user profile if not configured

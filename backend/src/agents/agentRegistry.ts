@@ -43,6 +43,7 @@ import { linkedinScraper } from '../scrapers/linkedinScraper.js';
 import { indeedScraper } from '../scrapers/indeedScraper.js';
 import { naukriScraper } from '../scrapers/naukriScraper.js';
 import { multiPortalAggregator } from '../discovery/multiPortalAggregator.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const jobRepository = new JobRepository();
 const activityLogRepository = new ActivityLogRepository();
@@ -317,11 +318,12 @@ export class CoverLetterAgentWrapper implements AgentContract<CoverLetterInput, 
       // If user id is provided and not a dry run, persist to database
       if (input.userId && !ctx.dryRun) {
         const db = await getDatabase();
-        const saved = await db.run(
-          `INSERT INTO cover_letters (user_id, job_id, resume_version_id, content) VALUES (?, ?, ?, ?)`,
-          [input.userId, input.jobId, input.resumeVersionId || null, content]
+        const newCoverId = uuidv4();
+        await db.run(
+          `INSERT INTO cover_letters (id, user_id, job_id, resume_version_id, content) VALUES (?, ?, ?, ?, ?)`,
+          [newCoverId, input.userId, input.jobId, input.resumeVersionId || null, content]
         );
-        coverLetterId = saved.lastID ? saved.lastID.toString() : undefined;
+        coverLetterId = newCoverId;
       }
 
       return {
