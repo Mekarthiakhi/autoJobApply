@@ -263,7 +263,7 @@ export async function getProfile(req: Request, res: Response) {
 
     const db = await getDatabase();
     const settings = await db.get(
-      `SELECT telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled FROM automation_settings WHERE user_id = ?`,
+      `SELECT telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled, whatsapp_enabled, whatsapp_phone, whatsapp_api_key FROM automation_settings WHERE user_id = ?`,
       [userId]
     );
 
@@ -292,6 +292,9 @@ export async function getProfile(req: Request, res: Response) {
       telegramChatId: settings?.telegram_chat_id || '',
       emailEnabled: settings ? settings.email_notifications === 1 : true,
       autoApplyEnabled: settings ? settings.auto_apply_enabled !== 0 : true,
+      whatsappEnabled: settings?.whatsapp_enabled === 1,
+      whatsappPhone: settings?.whatsapp_phone || '',
+      whatsappApiKey: settings?.whatsapp_api_key || '',
     });
   } catch (error) {
     if (error instanceof AppError) {
@@ -309,7 +312,18 @@ export async function updateProfile(req: Request, res: Response) {
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { preferredLocations, employmentType, minMatchScore, telegramEnabled, telegramChatId, emailEnabled, autoApplyEnabled } = req.body;
+    const {
+      preferredLocations,
+      employmentType,
+      minMatchScore,
+      telegramEnabled,
+      telegramChatId,
+      emailEnabled,
+      autoApplyEnabled,
+      whatsappEnabled,
+      whatsappPhone,
+      whatsappApiKey,
+    } = req.body;
 
     const locsJson = Array.isArray(preferredLocations)
       ? JSON.stringify(preferredLocations)
@@ -327,17 +341,21 @@ export async function updateProfile(req: Request, res: Response) {
     const tEnabled = telegramEnabled ? 1 : 0;
     const eEnabled = emailEnabled === false ? 0 : 1;
     const aEnabled = autoApplyEnabled === false ? 0 : 1;
+    const wEnabled = whatsappEnabled ? 1 : 0;
     
     await db.run(
-      `INSERT INTO automation_settings (user_id, telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO automation_settings (user_id, telegram_enabled, telegram_chat_id, email_notifications, auto_apply_enabled, whatsapp_enabled, whatsapp_phone, whatsapp_api_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (user_id) DO UPDATE SET
          telegram_enabled = excluded.telegram_enabled,
          telegram_chat_id = excluded.telegram_chat_id,
          email_notifications = excluded.email_notifications,
          auto_apply_enabled = excluded.auto_apply_enabled,
+         whatsapp_enabled = excluded.whatsapp_enabled,
+         whatsapp_phone = excluded.whatsapp_phone,
+         whatsapp_api_key = excluded.whatsapp_api_key,
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, tEnabled, telegramChatId || '', eEnabled, aEnabled]
+      [userId, tEnabled, telegramChatId || '', eEnabled, aEnabled, wEnabled, whatsappPhone || '', whatsappApiKey || '']
     );
 
     res.json({
@@ -351,6 +369,9 @@ export async function updateProfile(req: Request, res: Response) {
       telegramChatId: telegramChatId || '',
       emailEnabled: Boolean(eEnabled),
       autoApplyEnabled: Boolean(aEnabled),
+      whatsappEnabled: Boolean(wEnabled),
+      whatsappPhone: whatsappPhone || '',
+      whatsappApiKey: whatsappApiKey || '',
     });
   } catch (error) {
     if (error instanceof AppError) {

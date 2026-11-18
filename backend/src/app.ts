@@ -148,6 +148,19 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
+// Serve captured verification proof screenshots safely
+app.get('/api/screenshots/:filename', (req: Request, res: Response) => {
+  const safeName = path.basename(req.params.filename || '');
+  if (!safeName || !safeName.endsWith('.png')) {
+    return res.status(400).json({ error: 'Invalid screenshot filename' });
+  }
+  const fullPath = path.join(env.SCREENSHOTS_DIR, safeName);
+  if (!fs.existsSync(fullPath)) {
+    return res.status(404).json({ error: 'Screenshot not found' });
+  }
+  res.sendFile(fullPath);
+});
+
 // Serve static frontend in production if built dist exists
 const possibleDistPaths = [
   path.resolve(process.cwd(), 'public'),

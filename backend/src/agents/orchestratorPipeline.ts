@@ -12,6 +12,9 @@ import {
 import { agentRegistry } from './agentRegistry.js';
 import { plannerAgent } from '../services/plannerAgent.js';
 import { reviewAgent } from '../services/reviewAgent.js';
+import { externalSubmitter } from '../services/externalSubmitter.js';
+import { sendApplicationRunSummaryEmail, ApplicationReportItem } from '../utils/email.js';
+import { whatsappService } from '../services/whatsappService.js';
 
 export interface WorkflowPipelineOptions {
   workflowId?: string;
@@ -150,11 +153,27 @@ export class MultiAgentPipelineOrchestrator {
       }
 
       // Check whether auto-apply is enabled for this user (enabled by default unless turned off in Settings)
-      const autoSettings = await db.get<{ auto_apply_enabled: number }>(
-        `SELECT auto_apply_enabled FROM automation_settings WHERE user_id = ?`,
+      const autoSettings = await db.get<{
+        auto_apply_enabled: number;
+        email_notifications: number;
+        whatsapp_enabled: number;
+        whatsapp_phone: string | null;
+        whatsapp_api_key: string | null;
+      }>(
+        `SELECT auto_apply_enabled, email_notifications, whatsapp_enabled, whatsapp_phone, whatsapp_api_key
+         FROM automation_settings WHERE user_id = ?`,
         [userId]
       );
       const autoApplyEnabled = autoSettings ? autoSettings.auto_apply_enabled !== 0 : true;
+      const userRecord = await db.get<{ email: string; full_name: string }>(
+        `SELECT email, full_name FROM users WHERE id = ?`,
+        [userId]
+      );
+      const baseResumeFileRow = await db.get<{ file_path: string | null }>(
+        `SELECT file_path FROM resumes WHERE user_id = ? LIMIT 1`,
+        [userId]
+      );
+      const reportItems: ApplicationReportItem[] = [];
 
       // Limit job batch size if requested
       const jobsToProcess = options.limitJobs ? uniqueJobIds.slice(0, options.limitJobs) : uniqueJobIds;
@@ -330,18 +349,79 @@ export class MultiAgentPipelineOrchestrator {
 
               if (autoApplyEnabled) {
                 try {
-                  await reviewAgent.approve(userId, appId, {
-                    verifiedAnswers: true,
-                    notes: `Auto-applied with tailored resume (${matchScore}% match) & Gemini cover letter`,
-                  });
-                  logger.info(`🚀 Auto-applied to "${job.title}" at "${job.company_name}" (${matchScore}% match)`, {
-                    workflowId,
-                    userId,
-                    jobId: job.id,
+                  // Attempt GENUINE external submission (Direct Recruiter Email or Public ATS Form via Playwright)
+                  const extResult = await externalSubmitter.attemptVerifiedSubmission({
                     applicationId: appId,
+                    job: {
+                      id: job.id,
+                      title: job.title,
+                      company_name: job.company_name,
+                      apply_url: job.apply_url,
+                      job_description: job.job_description,
+                      source: job.source,
+                    },
+                    candidate: {
+                      fullName: userRecord?.full_name || 'Candidate',
+                      email: userRecord?.email || '',
+                      resumeFilePath: baseResumeFileRow?.file_path || null,
+                      resumeText: activeResumeText,
+                    },
+                    coverLetterText: coverData?.content || '',
                   });
+
+                  const isExternallyVerified =
+                    extResult.externalStatus === 'VERIFIED_ATS_SUBMITTED' ||
+                    extResult.externalStatus === 'VERIFIED_EMAIL_SENT';
+
+                  if (isExternallyVerified) {
+                    await reviewAgent.approve(userId, appId, {
+                      verifiedAnswers: true,
+                      notes: extResult.proof.confirmationText || extResult.proof.reason,
+                    }).catch(() => {});
+                  }
+
+                  await db.run(
+                    `UPDATE applications
+                     SET external_status = ?,
+                         submission_proof = ?,
+                         screenshot_path = COALESCE(?, screenshot_path),
+                         verified_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE verified_at END,
+                         status = CASE WHEN ? = 1 THEN 'applied' ELSE 'pending' END,
+                         stage_status = CASE WHEN ? = 1 THEN 'SUBMITTED' ELSE 'READY_FOR_REVIEW' END,
+                         notes = ?,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE id = ? AND user_id = ?`,
+                    [
+                      extResult.externalStatus,
+                      JSON.stringify(extResult.proof),
+                      extResult.proof.screenshotFile || null,
+                      isExternallyVerified ? 1 : 0,
+                      isExternallyVerified ? 1 : 0,
+                      isExternallyVerified ? 1 : 0,
+                      extResult.proof.reason,
+                      appId,
+                      userId,
+                    ]
+                  );
+
+                  reportItems.push({
+                    jobTitle: job.title,
+                    companyName: job.company_name,
+                    matchScore,
+                    externalStatus: extResult.externalStatus,
+                    applyUrl: extResult.proof.finalUrl || job.apply_url,
+                    reason: extResult.proof.reason,
+                    atsPlatform: extResult.proof.atsPlatform,
+                  });
+
+                  logger.info(
+                    isExternallyVerified
+                      ? `✅ VERIFIED EXTERNAL APPLY: "${job.title}" at "${job.company_name}" (${extResult.externalStatus})`
+                      : `⚡ AI PREPARED (Manual Apply Required): "${job.title}" at "${job.company_name}" — ${extResult.proof.reason}`,
+                    { workflowId, userId, jobId: job.id, applicationId: appId }
+                  );
                 } catch (autoErr: any) {
-                  logger.warn(`Auto-apply skipped for "${job.title}", left in Review Queue`, { error: autoErr.message });
+                  logger.warn(`External submit attempt failed for "${job.title}"`, { error: autoErr.message });
                 }
               } else {
                 logger.info(`📋 Application draft queued for human review: "${job.title}" at "${job.company_name}"`, {
@@ -358,6 +438,28 @@ export class MultiAgentPipelineOrchestrator {
         } catch (jobErr: any) {
           logger.error(`Error processing job ${jobId} in pipeline`, jobErr);
           errors.push(`Job ${jobId} error: ${jobErr.message}`);
+        }
+      }
+
+      // 5. Send honest Email + WhatsApp Verification Report after processing jobs
+      if (reportItems.length > 0 && userRecord?.email && !userRecord.email.endsWith('@example.com')) {
+        const emailEnabled = autoSettings ? autoSettings.email_notifications !== 0 : true;
+        if (emailEnabled) {
+          sendApplicationRunSummaryEmail(userRecord.email, userRecord.full_name, reportItems).catch((err) =>
+            logger.warn('Application summary email skipped', err)
+          );
+        }
+
+        const waEnabled = autoSettings?.whatsapp_enabled === 1 || Boolean(process.env.WHATSAPP_PHONE && process.env.CALLMEBOT_API_KEY);
+        if (waEnabled) {
+          const appUrl = process.env.FRONTEND_URL || 'https://autojobapply-production-69da9ff5.up.railway.app';
+          const waMsg = whatsappService.buildRunSummaryMessage(reportItems, appUrl.replace(/\/$/, ''));
+          whatsappService
+            .sendMessage(waMsg, {
+              phone: autoSettings?.whatsapp_phone,
+              apiKey: autoSettings?.whatsapp_api_key,
+            })
+            .catch((err) => logger.warn('WhatsApp notification skipped', err));
         }
       }
 

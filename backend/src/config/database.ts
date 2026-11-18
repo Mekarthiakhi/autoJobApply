@@ -285,6 +285,12 @@ export async function initializeDatabase() {
     `ALTER TABLE applications ADD COLUMN last_submission_error TEXT`,
     `ALTER TABLE applications ADD COLUMN stage_status VARCHAR(50) DEFAULT 'READY_FOR_REVIEW'`,
     `ALTER TABLE applications ADD COLUMN created_at DATETIME`,
+    `ALTER TABLE applications ADD COLUMN external_status VARCHAR(50) DEFAULT 'AI_PREPARED'`,
+    `ALTER TABLE applications ADD COLUMN submission_proof TEXT`,
+    `ALTER TABLE applications ADD COLUMN verified_at DATETIME`,
+    `ALTER TABLE automation_settings ADD COLUMN whatsapp_enabled INTEGER DEFAULT 0`,
+    `ALTER TABLE automation_settings ADD COLUMN whatsapp_phone VARCHAR(50)`,
+    `ALTER TABLE automation_settings ADD COLUMN whatsapp_api_key VARCHAR(255)`,
   ];
   for (const stmt of alterStatements) {
     try { await sql.exec(stmt); } catch { /* column already exists */ }

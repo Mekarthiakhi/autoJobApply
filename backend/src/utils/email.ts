@@ -23,6 +23,7 @@ interface MailPayload {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
 }
 
 /**
@@ -31,7 +32,7 @@ interface MailPayload {
  * 2. SMTP / Gmail (SMTP_USER + SMTP_PASS) — works with any Gmail App Password or custom SMTP server
  * 3. Resend API (RESEND_API_KEY) — works for any address once a custom domain is verified
  */
-async function sendMail({ to, subject, html }: MailPayload): Promise<EmailSendResult> {
+export async function sendMail({ to, subject, html, replyTo }: MailPayload): Promise<EmailSendResult> {
   // 1. Brevo HTTP API (HTTPS port 443, sends to any recipient without needing a custom domain)
   const brevoKey = process.env.BREVO_API_KEY || env.BREVO_API_KEY;
   if (brevoKey) {
@@ -39,14 +40,18 @@ async function sendMail({ to, subject, html }: MailPayload): Promise<EmailSendRe
       const senderEmail = process.env.EMAIL_FROM || env.EMAIL_FROM || process.env.SMTP_USER || 'akhileshmekarthi74@gmail.com';
       const senderMatch = senderEmail.match(/<(.+)>/);
       const cleanSenderEmail = senderMatch ? senderMatch[1] : senderEmail;
+      const body: Record<string, any> = {
+        sender: { name: 'AutoApply AI', email: cleanSenderEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      };
+      if (replyTo) {
+        body.replyTo = { email: replyTo };
+      }
       const response = await axios.post(
         'https://api.brevo.com/v3/smtp/email',
-        {
-          sender: { name: 'AutoApply AI', email: cleanSenderEmail },
-          to: [{ email: to }],
-          subject,
-          htmlContent: html,
-        },
+        body,
         {
           headers: {
             'api-key': brevoKey,
@@ -168,5 +173,89 @@ export async function sendPasswordResetEmail(email: string, fullName: string, to
         <p style="color: #666; font-size: 14px;">If you didn't request a password reset, you can safely ignore this email. This link will expire in 1 hour.</p>
       </div>
     `,
+  });
+}
+
+export interface ApplicationReportItem {
+  jobTitle: string;
+  companyName: string;
+  matchScore: number;
+  externalStatus: string;
+  applyUrl?: string;
+  reason?: string;
+  atsPlatform?: string;
+}
+
+export async function sendApplicationRunSummaryEmail(
+  email: string,
+  fullName: string,
+  items: ApplicationReportItem[]
+): Promise<EmailSendResult> {
+  if (!email || items.length === 0) {
+    return { sent: false, error: 'No items to report' };
+  }
+  const frontendUrl = getFrontendBaseUrl();
+  const verified = items.filter(
+    (i) => i.externalStatus === 'VERIFIED_ATS_SUBMITTED' || i.externalStatus === 'VERIFIED_EMAIL_SENT'
+  );
+  const manual = items.filter(
+    (i) => i.externalStatus !== 'VERIFIED_ATS_SUBMITTED' && i.externalStatus !== 'VERIFIED_EMAIL_SENT'
+  );
+
+  const renderRows = (list: ApplicationReportItem[], badgeColor: string, badgeLabel: string) =>
+    list
+      .map(
+        (item) => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #eee;">
+          <strong>${item.jobTitle}</strong><br/>
+          <span style="color:#666; font-size:12px;">${item.companyName} · ${item.matchScore}% match${item.atsPlatform ? ` · ${item.atsPlatform}` : ''}</span>
+          ${item.reason ? `<div style="color:#64748b; font-size:11px; margin-top:3px;">${item.reason}</div>` : ''}
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align:right; white-space:nowrap;">
+          <span style="background:${badgeColor}; color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:600;">${badgeLabel}</span>
+          ${item.applyUrl ? `<br/><a href="${item.applyUrl}" style="font-size:11px; color:#4f46e5; display:inline-block; margin-top:4px;">Open Company Page →</a>` : ''}
+        </td>
+      </tr>`
+      )
+      .join('');
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+      <h2 style="color: #4f46e5; margin-top: 0;">AutoApply AI Verification Report</h2>
+      <p style="color:#334155;">Hi ${fullName || 'there'}, here is the verified status of your latest autonomous job run:</p>
+      <div style="display:flex; gap:12px; margin: 16px 0;">
+        <div style="flex:1; background:#ecfdf5; border:1px solid #a7f3d0; padding:12px; border-radius:8px; text-align:center;">
+          <div style="font-size:22px; font-weight:700; color:#059669;">${verified.length}</div>
+          <div style="font-size:12px; color:#065f46;">Verified Externally Submitted</div>
+        </div>
+        <div style="flex:1; background:#fffbeb; border:1px solid #fde68a; padding:12px; border-radius:8px; text-align:center;">
+          <div style="font-size:22px; font-weight:700; color:#d97706;">${manual.length}</div>
+          <div style="font-size:12px; color:#92400e;">AI Prepared (1-Click Apply)</div>
+        </div>
+      </div>
+      ${
+        verified.length > 0
+          ? `<h3 style="color:#059669; margin-bottom:8px;">✅ Verified Externally Submitted</h3>
+             <table style="width:100%; border-collapse:collapse; margin-bottom:18px;">${renderRows(verified, '#059669', 'Verified Applied')}</table>`
+          : ''
+      }
+      ${
+        manual.length > 0
+          ? `<h3 style="color:#d97706; margin-bottom:8px;">⚡ AI Prepared — Ready for 1-Click Apply</h3>
+             <p style="font-size:12px; color:#64748b; margin-top:0;">Tailored resumes and Gemini cover letters are ready. These portals required login, CAPTCHA, or custom questions.</p>
+             <table style="width:100%; border-collapse:collapse; margin-bottom:18px;">${renderRows(manual, '#d97706', '1-Click Apply')}</table>`
+          : ''
+      }
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${frontendUrl}/applications" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Live Screenshots & Proof</a>
+      </div>
+    </div>
+  `;
+
+  return sendMail({
+    to: email,
+    subject: `AutoApply Report: ${verified.length} Verified Applied · ${manual.length} Ready for 1-Click Apply`,
+    html,
   });
 }

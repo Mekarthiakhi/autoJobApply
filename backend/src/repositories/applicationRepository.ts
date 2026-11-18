@@ -136,12 +136,16 @@ export class ApplicationRepository {
          j.company_name,
          j.location,
          j.apply_url,
-         rv.label as resume_version_label
+         j.source,
+         rv.label as resume_version_label,
+         rv.text_content as resume_content,
+         cl.content as cover_letter_content
        FROM applications a
        JOIN jobs j ON a.job_id = j.id
        LEFT JOIN resume_versions rv ON a.resume_version_id = rv.id
+       LEFT JOIN cover_letters cl ON a.cover_letter_id = cl.id
        WHERE a.user_id = ?
-       ORDER BY a.applied_at DESC`,
+       ORDER BY a.updated_at DESC, a.applied_at DESC`,
       [userId]
     )) as Application[];
   }

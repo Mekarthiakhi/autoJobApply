@@ -59,6 +59,12 @@ export const applicationsAPI = {
   getApplications: () => client.get('/applications'),
   updateStatus: (applicationId: string, status: string) =>
     client.put(`/applications/${applicationId}`, { status }),
+  verifySubmit: (applicationId: string) =>
+    client.post(`/applications/${applicationId}/verify-submit`),
+  confirmApplied: (applicationId: string) =>
+    client.post(`/applications/${applicationId}/confirm-applied`),
+  notifyWhatsApp: (data?: { phone?: string; apiKey?: string }) =>
+    client.post('/applications/notify-whatsapp', data || {}),
 };
 
 export const dashboardAPI = {

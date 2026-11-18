@@ -13,6 +13,9 @@ export const Settings: React.FC = () => {
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [autoApplyEnabled, setAutoApplyEnabled] = useState(true);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [whatsappApiKey, setWhatsappApiKey] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -44,6 +47,9 @@ export const Settings: React.FC = () => {
         if (profile.telegramEnabled !== undefined) setTelegramEnabled(Boolean(profile.telegramEnabled));
         if (profile.emailEnabled !== undefined) setEmailEnabled(Boolean(profile.emailEnabled));
         if (profile.autoApplyEnabled !== undefined) setAutoApplyEnabled(Boolean(profile.autoApplyEnabled));
+        if (profile.whatsappEnabled !== undefined) setWhatsappEnabled(Boolean(profile.whatsappEnabled));
+        if (profile.whatsappPhone) setWhatsappPhone(profile.whatsappPhone);
+        if (profile.whatsappApiKey) setWhatsappApiKey(profile.whatsappApiKey);
         if (resumeRes.data?.file_name) setCurrentResumeName(resumeRes.data.file_name);
       } catch (error) {
         console.error('Failed to fetch profile', error);
@@ -63,6 +69,9 @@ export const Settings: React.FC = () => {
         telegramEnabled,
         emailEnabled,
         autoApplyEnabled,
+        whatsappEnabled,
+        whatsappPhone,
+        whatsappApiKey,
       });
       setSaveMessage('Settings saved successfully.');
       toast.success('Settings saved successfully.');
@@ -215,12 +224,47 @@ export const Settings: React.FC = () => {
           <div className="toggle-row">
             <div className="toggle-info">
               <div className="toggle-name">Hourly Auto-Apply (Default ON)</div>
-              <div className="toggle-desc">Runs every 1 hour · discovers Remote-first roles, tailors resume &amp; applies automatically</div>
+              <div className="toggle-desc">Runs every 1 hour · discovers Remote-first roles, tailors resume &amp; verifies external submission</div>
             </div>
             <div className={`toggle ${autoApplyEnabled ? 'on' : ''}`} onClick={() => setAutoApplyEnabled(!autoApplyEnabled)}>
               <div className="toggle-dot"></div>
             </div>
           </div>
+
+          <div className="toggle-row" style={{ borderBottom: whatsappEnabled ? 'none' : undefined }}>
+            <div className="toggle-info">
+              <div className="toggle-name">WhatsApp Reports (CallMeBot Free API)</div>
+              <div className="toggle-desc">Automatically message your WhatsApp after every hourly run with verified proof &amp; links</div>
+            </div>
+            <div className={`toggle ${whatsappEnabled ? 'on' : ''}`} onClick={() => setWhatsappEnabled(!whatsappEnabled)}>
+              <div className="toggle-dot"></div>
+            </div>
+          </div>
+
+          {whatsappEnabled && (
+            <div style={{ marginTop: '10px', padding: '12px', borderRadius: '10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.22)' }}>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginBottom: '10px', lineHeight: 1.5 }}>
+                Free 30-second setup: Save <strong>+34 644 71 98 39</strong> on WhatsApp, send{' '}
+                <code style={{ color: '#4ade80' }}>I allow callmebot to send me messages</code>, then paste your number &amp; API key below:
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  className="neumo-input"
+                  placeholder="WhatsApp Phone (e.g. +919876543210)"
+                  value={whatsappPhone}
+                  onChange={(e) => setWhatsappPhone(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="neumo-input"
+                  placeholder="CallMeBot API Key"
+                  value={whatsappApiKey}
+                  onChange={(e) => setWhatsappApiKey(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
