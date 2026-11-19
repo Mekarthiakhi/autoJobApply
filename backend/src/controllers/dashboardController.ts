@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { JobRepository } from '../repositories/jobRepository.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { analyticsService, AnalyticsFilters } from '../services/analyticsService.js';
+import { getDatabase } from '../config/database.js';
 
 const jobRepository = new JobRepository();
 
@@ -36,6 +37,22 @@ export async function getDashboard(req: Request, res: Response) {
     // 5. Fetch recent jobs
     const recentJobs = await jobRepository.findRecent(5);
 
+    // 6. Fetch live cron / scheduler status
+    const db = await getDatabase();
+    const settings = await db.get<{
+      auto_apply_enabled: number;
+      auto_apply_interval_hours: number;
+      last_auto_apply_run_at: string | null;
+    }>(
+      `SELECT auto_apply_enabled, auto_apply_interval_hours, last_auto_apply_run_at FROM automation_settings WHERE user_id = ?`,
+      [userId]
+    );
+    const intervalHours = Math.min(5, Math.max(1, Number(settings?.auto_apply_interval_hours) || 1));
+    const lastRunAt = settings?.last_auto_apply_run_at || null;
+    const nextRunAt = lastRunAt
+      ? new Date(new Date(lastRunAt + (lastRunAt.endsWith('Z') ? '' : 'Z')).getTime() + intervalHours * 3600000).toISOString()
+      : null;
+
     // Format response with both comprehensive Phase 11 metrics and backwards-compatible stats
     res.json({
       metrics,
@@ -58,6 +75,14 @@ export async function getDashboard(req: Request, res: Response) {
       recentWorkflow: recentWorkflow.items,
       sourcePerformance,
       recentJobs,
+      cronStatus: {
+        enabled: settings ? settings.auto_apply_enabled !== 0 : true,
+        intervalHours,
+        lastRunAt,
+        nextRunAt,
+        isSchedulerActive: process.env.ENABLE_SCHEDULED_JOBS !== 'false',
+        masterSchedule: 'Every hour (0 * * * *)',
+      },
       filters,
     });
   } catch (error) {

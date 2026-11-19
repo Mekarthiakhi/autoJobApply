@@ -84,6 +84,16 @@ export const Dashboard: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [showGuideBanner, setShowGuideBanner] = useState(() => localStorage.getItem('hide_onboarding_guide') !== 'true');
+  const [cronStatus, setCronStatus] = useState<{
+    enabled: boolean;
+    intervalHours: number;
+    lastRunAt: string | null;
+    nextRunAt: string | null;
+    isSchedulerActive: boolean;
+    masterSchedule: string;
+  } | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
+  const [liveSyncActive, setLiveSyncActive] = useState<boolean>(true);
 
   // Filters state
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
@@ -92,9 +102,9 @@ export const Dashboard: React.FC = () => {
   const [roleSearch, setRoleSearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const params: Record<string, string> = {};
 
       if (dateRange !== 'all') {
@@ -121,16 +131,29 @@ export const Dashboard: React.FC = () => {
       if (response.data?.sourcePerformance) {
         setSourcePerformance(response.data.sourcePerformance);
       }
+      if (response.data?.cronStatus) {
+        setCronStatus(response.data.cronStatus);
+      }
+      setLastSyncedAt(new Date());
     } catch (error) {
       console.error('Failed to fetch dashboard', error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, [dateRange, selectedPlatform, companySearch, roleSearch, statusFilter]);
 
   useEffect(() => {
-    fetchDashboard();
+    fetchDashboard(false);
   }, [fetchDashboard]);
+
+  // Real-time live polling every 5 seconds (hands-free live updates without browser reload!)
+  useEffect(() => {
+    if (!liveSyncActive) return;
+    const interval = setInterval(() => {
+      fetchDashboard(true);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchDashboard, liveSyncActive]);
 
   const handleRunAgents = async () => {
     try {
@@ -187,6 +210,38 @@ export const Dashboard: React.FC = () => {
           <p className="text-gray-400 text-sm mt-1">Real-time pipeline metrics, conversion intelligence, and workflow observability</p>
         </div>
         <div className="flex items-center gap-3">
+          <div
+            onClick={() => setLiveSyncActive(!liveSyncActive)}
+            title={liveSyncActive ? "Live Auto-Sync Active (every 5s). Click to pause." : "Live Auto-Sync Paused. Click to resume."}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              background: liveSyncActive ? 'rgba(34, 197, 94, 0.12)' : 'rgba(100, 116, 139, 0.2)',
+              border: `1px solid ${liveSyncActive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
+              color: liveSyncActive ? '#4ade80' : '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              userSelect: 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: liveSyncActive ? '#22c55e' : '#94a3b8',
+                boxShadow: liveSyncActive ? '0 0 8px #22c55e' : 'none',
+              }}
+              className={liveSyncActive ? 'animate-pulse' : ''}
+            />
+            <span>{liveSyncActive ? 'Live 5s Sync' : 'Sync Paused'}</span>
+          </div>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium border transition-all ${showFilters || hasActiveFilters
@@ -407,6 +462,105 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Live Background Cron Job Hunter Status */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(17, 24, 39, 0.95) 100%)',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          borderRadius: '14px',
+          padding: '14px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: 'rgba(34, 197, 94, 0.15)',
+              border: '1px solid rgba(34, 197, 94, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#4ade80',
+              flexShrink: 0,
+            }}
+          >
+            <Clock size={20} className={runningAgents ? 'animate-spin text-purple-400' : ''} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
+                Automated Background Job Hunter (Cronjob)
+              </span>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '20px',
+                  background: cronStatus?.enabled !== false ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  color: cronStatus?.enabled !== false ? '#4ade80' : '#f87171',
+                  border: `1px solid ${cronStatus?.enabled !== false ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: cronStatus?.enabled !== false ? '#22c55e' : '#ef4444' }} />
+                {cronStatus?.enabled !== false ? 'ACTIVE & HUNTING' : 'PAUSED IN SETTINGS'}
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '3px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <span>
+                Schedule: <strong style={{ color: '#e2e8f0' }}>Every {cronStatus?.intervalHours || 1} hr(s)</strong>
+              </span>
+              <span>
+                Last Hunt: <strong style={{ color: '#e2e8f0' }}>{cronStatus?.lastRunAt ? new Date(cronStatus.lastRunAt).toLocaleTimeString() : 'Recent run logged'}</strong>
+              </span>
+              <span>
+                Next Hunt: <strong style={{ color: '#38bdf8' }}>{cronStatus?.nextRunAt ? new Date(cronStatus.nextRunAt).toLocaleTimeString() : 'Scheduled soon'}</strong>
+              </span>
+              <span style={{ color: '#22c55e', display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live 5s sync (updated {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={handleRunAgents}
+            disabled={runningAgents}
+            style={{
+              padding: '8px 16px',
+              fontSize: '12px',
+              fontWeight: 600,
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+            }}
+          >
+            <RefreshCw size={13} className={runningAgents ? 'animate-spin' : ''} />
+            <span>{runningAgents ? 'Hunting Now...' : '⚡ Hunt Jobs Now'}</span>
+          </button>
+        </div>
+      </div>
 
       {/* Filter Drawer */}
       {showFilters && (

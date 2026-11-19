@@ -56,13 +56,11 @@ const ReviewQueue: React.FC = () => {
   const [verifiedMap, setVerifiedMap] = useState<Record<string, boolean>>({});
   const [submittingMap, setSubmittingMap] = useState<Record<string, boolean>>({});
   const [actionErrorMap, setActionErrorMap] = useState<Record<string, string>>({});
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
 
-  useEffect(() => {
-    fetchReviews();
-  }, []);
-
-  const fetchReviews = async () => {
+  const fetchReviews = async (isBackground = false) => {
     try {
+      if (!isBackground) setLoading(true);
       const response = await reviewQueueAPI.getPendingReviews();
       const list = Array.isArray(response.data) ? response.data : [];
       setReviews(list);
@@ -73,13 +71,23 @@ const ReviewQueue: React.FC = () => {
           initialVerified[r.application_id] = true;
         }
       });
-      setVerifiedMap(initialVerified);
+      setVerifiedMap(prev => ({ ...initialVerified, ...prev }));
+      setLastSyncedAt(new Date());
     } catch (error) {
       console.error('Failed to fetch reviews', error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchReviews(false);
+    // Real-time live polling every 5s without browser reload
+    const interval = setInterval(() => {
+      fetchReviews(true);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const toggleVerified = (appId: string) => {
     setVerifiedMap(prev => ({
@@ -157,10 +165,17 @@ const ReviewQueue: React.FC = () => {
           </p>
         </div>
 
-        {/* Phase 10: Bulk Approval Policy Indicator */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-400 text-xs">
-          <Lock size={14} className="text-amber-400" />
-          <span>Bulk Approval Disabled by Policy — Individual Verification Required</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs font-semibold shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Live 5s Sync · Auto-detects newly hunted jobs</span>
+          </div>
+
+          {/* Phase 10: Bulk Approval Policy Indicator */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-400 text-xs">
+            <Lock size={14} className="text-amber-400" />
+            <span>Bulk Approval Disabled by Policy — Individual Verification Required</span>
+          </div>
         </div>
       </div>
 
