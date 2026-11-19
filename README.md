@@ -1,10 +1,23 @@
 # AutoApply AI — Open-Source Multi-Agent Job Application & Verification Platform
 
+[![Live Web App](https://img.shields.io/badge/Live_App-autojobapply.up.railway.app-8A2BE2?style=for-the-badge&logo=railway&logoColor=white)](https://autojobapply-production-69da9ff5.up.railway.app)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
+
 An open-source, multi-user, full-stack AI job discovery, resume tailoring, and **verified external application** platform built with **React + TypeScript + Express + SQLite + Playwright + Gemini AI**.
 
 Unlike basic trackers that only log jobs locally, AutoApply AI **verifies every external submission honestly** — capturing live company page screenshots, tracking official company replies in your inbox, and sending hourly **Email + WhatsApp verification reports** to each user.
 
-> 📖 **Complete User & Architecture Guide:** See [USER_AND_ARCHITECTURE_GUIDE.md](./docs/USER_AND_ARCHITECTURE_GUIDE.md) for full instructions on uploading resumes, managing active/inactive cron schedules, and verifying proof screenshots.
+---
+
+### 🚀 Direct Links
+
+* 🌐 **Live Web Application (Railway):** [https://autojobapply-production-69da9ff5.up.railway.app](https://autojobapply-production-69da9ff5.up.railway.app)
+* 📖 **Complete User & Architecture Guide:** [docs/USER_AND_ARCHITECTURE_GUIDE.md](./docs/USER_AND_ARCHITECTURE_GUIDE.md) (covers resume upload, cronjob active/inactive toggling, proof verification, and hosting).
+
+---
 
 ## Key Features
 
@@ -50,11 +63,15 @@ npm install
 npm run dev
 ```
 
-## One-Click Docker / Railway Deployment
+## Docker Deployment
 
-The repository includes a unified multi-stage [Dockerfile](./Dockerfile) that builds the React SPA, compiles the TypeScript Express backend, and installs Playwright Chromium in a single container:
+The repository includes a modern [docker-compose.yml](./docker-compose.yml) and unified multi-stage [Dockerfile](./Dockerfile) that builds the React SPA, compiles the TypeScript Express backend, and installs Playwright Chromium:
 
 ```bash
+# Start with docker-compose
+docker compose up -d
+
+# Or run the standalone container
 docker build -t autoapply-ai .
 docker run -p 5000:5000 \
   -e NODE_ENV=production \
@@ -79,4 +96,3 @@ See [.env.example](./.env.example) for the complete list of optional and require
 ## License
 
 MIT License — see [LICENSE](./LICENSE).
-
