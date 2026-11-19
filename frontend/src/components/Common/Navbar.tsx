@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { LayoutDashboard, Briefcase, FileText, Building2, BarChart3, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileText, Building2, BarChart3, Settings as SettingsIcon, LogOut, HelpCircle, Sparkles } from 'lucide-react';
+import { HowItWorksModal } from './HowItWorksModal';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -56,7 +58,30 @@ const Navbar: React.FC = () => {
         </NavLink>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginLeft: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+        <button
+          type="button"
+          onClick={() => setIsGuideOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 12px',
+            borderRadius: '20px',
+            background: 'rgba(99, 102, 241, 0.15)',
+            border: '1px solid rgba(99, 102, 241, 0.35)',
+            color: '#c7d2fe',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          title="Open step-by-step user guide"
+        >
+          <Sparkles size={13} color="#a5b4fc" />
+          <span>How It Works</span>
+        </button>
+
         {user && (
           <div
             className="user-profile-pill"
@@ -123,6 +148,8 @@ const Navbar: React.FC = () => {
           <span>Logout</span>
         </button>
       </div>
+
+      <HowItWorksModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </nav>
   );
 };

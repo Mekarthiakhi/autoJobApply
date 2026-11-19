@@ -6,8 +6,9 @@ import { Link } from 'react-router-dom';
 import {
   Search, Sparkles, Target, ArrowUp, Inbox, CheckCircle2,
   Send, AlertTriangle, Clock, XCircle, Filter,
-  RefreshCw, ChevronRight, Layers, Award, Bot
+  RefreshCw, ChevronRight, Layers, Award, Bot, BookOpen, ArrowRight, HelpCircle, X
 } from 'lucide-react';
+import { HowItWorksModal } from '../Common/HowItWorksModal';
 
 interface MetricData {
   totalJobsDiscovered: number;
@@ -81,6 +82,8 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [runningAgents, setRunningAgents] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [showGuideBanner, setShowGuideBanner] = useState(() => localStorage.getItem('hide_onboarding_guide') !== 'true');
 
   // Filters state
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
@@ -219,6 +222,191 @@ export const Dashboard: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Quick Start Guide Banner */}
+      {showGuideBanner && (
+        <div
+          style={{
+            position: 'relative',
+            background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.28)',
+            borderRadius: '16px',
+            padding: '20px 24px',
+            boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                }}
+              >
+                <BookOpen size={18} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
+                  Quick Start: How AutoJobApply Works in 4 Steps
+                </h3>
+                <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0' }}>
+                  A clear roadmap for new test users — zero guesswork
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setIsGuideOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(99, 102, 241, 0.25)',
+                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  color: '#c7d2fe',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <span>Open Full Guide & FAQs</span>
+                <ArrowRight size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem('hide_onboarding_guide', 'true');
+                  setShowGuideBanner(false);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  padding: '4px',
+                }}
+                title="Dismiss banner"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+              marginTop: '16px',
+            }}
+          >
+            <Link
+              to="/resume"
+              style={{
+                textDecoration: 'none',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.07)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                color: 'inherit',
+                transition: 'background 0.15s ease',
+              }}
+              className="hover:bg-indigo-950/40"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#818cf8' }}>
+                <span>1. Upload Resume</span>
+                <ArrowRight size={12} />
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Upload PDF/DOCX. AI parses your contact details, phone, and skills.
+              </div>
+            </Link>
+
+            <Link
+              to="/settings"
+              style={{
+                textDecoration: 'none',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.07)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                color: 'inherit',
+                transition: 'background 0.15s ease',
+              }}
+              className="hover:bg-indigo-950/40"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#c084fc' }}>
+                <span>2. Set Match Score</span>
+                <ArrowRight size={12} />
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Set threshold to 50%–55% and choose remote location preferences.
+              </div>
+            </Link>
+
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.07)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#f472b6' }}>
+                <span>3. AI Discovers & Tailors</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Runs hourly or via "Run Pipeline". Drafts custom resumes + cover letters.
+              </div>
+            </div>
+
+            <Link
+              to="/review-queue"
+              style={{
+                textDecoration: 'none',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                color: 'inherit',
+                transition: 'background 0.15s ease',
+              }}
+              className="hover:bg-emerald-950/50"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#34d399' }}>
+                <span>4. Authorize in Review</span>
+                <ArrowRight size={12} />
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Check the verify box and click "Authorize & Submit" to apply!
+              </div>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Filter Drawer */}
       {showFilters && (
@@ -587,6 +775,8 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      <HowItWorksModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 };

@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, FileCheck, Building2, FileText, BarChart3, Inbox, Activity, Files, Settings as SettingsIcon, LogOut, Bot } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileCheck, Building2, FileText, BarChart3, Inbox, Activity, Files, Settings as SettingsIcon, LogOut, Bot, Sparkles } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './Common.module.css';
+import { HowItWorksModal } from './HowItWorksModal';
 
 export const Sidebar: React.FC = () => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -130,6 +132,32 @@ export const Sidebar: React.FC = () => {
           <span>Settings</span>
         </NavLink>
       </nav>
+
+      <div style={{ padding: '0 16px 12px' }}>
+        <button
+          type="button"
+          onClick={() => setIsGuideOpen(true)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '9px 12px',
+            borderRadius: '10px',
+            background: 'rgba(99, 102, 241, 0.12)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            color: '#c7d2fe',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'background 0.15s ease',
+          }}
+        >
+          <Sparkles size={15} color="#818cf8" />
+          <span>How It Works Guide</span>
+        </button>
+      </div>
       
       <div className={styles.footer}>
         {user && (
@@ -177,6 +205,8 @@ export const Sidebar: React.FC = () => {
           <span>Logout</span>
         </button>
       </div>
+
+      <HowItWorksModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </aside>
   );
 };
