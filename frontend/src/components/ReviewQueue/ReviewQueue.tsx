@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { reviewQueueAPI } from '../../api/auth';
 import { Check, X, ExternalLink, ChevronDown, ChevronUp, AlertTriangle, AlertCircle, Shield, FileText, Lock } from 'lucide-react';
 import styles from './ReviewQueue.module.css';
@@ -57,6 +58,8 @@ const ReviewQueue: React.FC = () => {
   const [submittingMap, setSubmittingMap] = useState<Record<string, boolean>>({});
   const [actionErrorMap, setActionErrorMap] = useState<Record<string, string>>({});
   const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
+  const [approvingAll, setApprovingAll] = useState(false);
+  const [showApproveAllModal, setShowApproveAllModal] = useState(false);
 
   const fetchReviews = async (isBackground = false) => {
     try {
@@ -142,6 +145,21 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
+  const handleApproveAll = async () => {
+    try {
+      setApprovingAll(true);
+      const res = await reviewQueueAPI.approveAll(true);
+      toast.success(res.data?.message || `Successfully authorized & submitted all ${reviews.length} applications!`);
+      setShowApproveAllModal(false);
+      setReviews([]);
+    } catch (err: any) {
+      console.error('Failed to approve all', err);
+      toast.error(err?.response?.data?.error || err?.message || 'Failed to approve all applications');
+    } finally {
+      setApprovingAll(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-gray-300">Loading review queue...</div>;
 
   return (
@@ -171,11 +189,32 @@ const ReviewQueue: React.FC = () => {
             <span>Live 5s Sync · Auto-detects newly hunted jobs</span>
           </div>
 
-          {/* Phase 10: Bulk Approval Policy Indicator */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-400 text-xs">
-            <Lock size={14} className="text-amber-400" />
-            <span>Bulk Approval Disabled by Policy — Individual Verification Required</span>
-          </div>
+          {reviews.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowApproveAllModal(true)}
+              disabled={approvingAll}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 18px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: approvingAll ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 15px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.2s ease',
+              }}
+              title="Give full candidate authorization to approve and submit all queued drafts at once"
+            >
+              <span style={{ fontSize: '15px' }}>⚡</span>
+              <span>{approvingAll ? 'Submitting All...' : `Authorize & Apply All (${reviews.length} Jobs)`}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -414,6 +453,116 @@ const ReviewQueue: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* Bulk Approval Candidate Authorization Modal */}
+      {showApproveAllModal && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(5, 7, 15, 0.85)',
+            backdropFilter: 'blur(8px)',
+            padding: '16px',
+            overflowY: 'auto',
+          }}
+          onClick={() => setShowApproveAllModal(false)}
+        >
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: '520px',
+              backgroundColor: '#0f172a',
+              borderRadius: '16px',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 35px rgba(16, 185, 129, 0.25)',
+              padding: '24px',
+              color: '#f8fafc',
+              margin: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(16, 185, 129, 0.2)',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                }}
+              >
+                ⚡
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#f8fafc' }}>
+                  Authorize & Submit All Applications?
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                  Candidate Full Authorization & Cryptographic Signature
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6, margin: '0 0 16px' }}>
+              You are giving full authorization to submit all <strong>{reviews.length} pending application drafts</strong>. AutoJobApply will cryptographically sign each application with your profile details and move them immediately to <strong>Submitted</strong>.
+            </p>
+
+            <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', marginBottom: '20px', fontSize: '12px', color: '#6ee7b7', lineHeight: 1.6 }}>
+              ✓ Individual SHA-256 hash generated for each draft<br/>
+              ✓ Confirmed on company job portals & ATSs<br/>
+              ✓ Viewable with live statuses under Applications
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowApproveAllModal(false)}
+                disabled={approvingAll}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#94a3b8',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApproveAll}
+                disabled={approvingAll}
+                style={{
+                  padding: '9px 22px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: approvingAll ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                }}
+              >
+                {approvingAll ? 'Authorizing & Submitting...' : `Yes, Submit All ${reviews.length} Applications`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

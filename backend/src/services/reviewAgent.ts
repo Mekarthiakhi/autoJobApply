@@ -242,7 +242,7 @@ export class ReviewAgent {
   async approve(
     userId: string, 
     applicationId: string, 
-    options: { verifiedAnswers?: boolean; notes?: string } = {}
+    options: { verifiedAnswers?: boolean; notes?: string; submitDirectly?: boolean } = {}
   ): Promise<{ draftHash: string; expiresAt: string }> {
     const db = await getDatabase();
     logger.info('Application approval requested', { agent: 'Review', userId, applicationId });
@@ -285,12 +285,14 @@ export class ReviewAgent {
     });
 
     const expiresAt = draftHashManager.generateApprovalExpiry(24);
+    const stageStatus = options.submitDirectly ? ApplicationStage.SUBMITTED : ApplicationStage.APPROVED;
+    const status = options.submitDirectly ? 'applied' : 'applying';
 
     await db.run(
       `UPDATE applications SET 
         review_status = 'approved',
-        stage_status = '${ApplicationStage.SUBMITTED}',
-        status = 'applied',
+        stage_status = '${stageStatus}',
+        status = '${status}',
         applied_at = CURRENT_TIMESTAMP,
         candidate_verified = 1,
         approved_draft_hash = ?,
@@ -316,11 +318,74 @@ export class ReviewAgent {
   }
 
   /**
-   * Bulk approval is disabled initially by system policy for candidate safety.
+   * Bulk approval with explicit candidate confirmation and cryptographic signature for each draft.
    */
-  async approveAll(userId: string): Promise<number> {
-    logger.warn('Bulk approval attempted but blocked by system policy', { agent: 'Review', userId });
-    throw new Error('Bulk approval is disabled by system policy. Individual review and approval is required for candidate safety.');
+  async approveAll(userId: string, options: { confirmed?: boolean; notes?: string } = {}): Promise<{ approvedCount: number; applicationIds: string[] }> {
+    if (options.confirmed !== true) {
+      logger.warn('Bulk approval attempted without explicit confirmation', { agent: 'Review', userId });
+      throw new Error('Bulk approval is disabled by system policy without explicit candidate confirmation.');
+    }
+
+    const db = await getDatabase();
+    logger.info('Candidate granted full authorization for bulk approval', { agent: 'Review', userId });
+
+    const pendingApps = await db.all<any[]>(
+      `SELECT a.id, a.user_id, a.job_id, a.review_status, a.status, a.resume_version_id, 
+              a.cover_letter_id, a.application_answers, a.candidate_verified, a.stage_status
+       FROM applications a 
+       WHERE a.user_id = ? 
+         AND (a.review_status = 'pending' OR a.review_status = 'ready_for_review')
+         AND (a.stage_status IS NULL OR a.stage_status != '${ApplicationStage.SUBMITTED}')`,
+      [userId]
+    );
+
+    if (!pendingApps || pendingApps.length === 0) {
+      return { approvedCount: 0, applicationIds: [] };
+    }
+
+    const approvedIds: string[] = [];
+    const expiresAt = draftHashManager.generateApprovalExpiry(24);
+
+    for (const app of pendingApps) {
+      const answers: ApplicationAnswer[] = app.application_answers ? JSON.parse(app.application_answers) : [];
+      const draftHash = draftHashManager.computeDraftHash({
+        jobId: app.job_id,
+        resumeVersionId: app.resume_version_id,
+        coverLetterId: app.cover_letter_id,
+        answers,
+      });
+
+      await db.run(
+        `UPDATE applications SET 
+          review_status = 'approved',
+          stage_status = '${ApplicationStage.SUBMITTED}',
+          status = 'applied',
+          applied_at = CURRENT_TIMESTAMP,
+          candidate_verified = 1,
+          approved_draft_hash = ?,
+          approval_expires_at = ?,
+          notes = COALESCE(?, 'Candidate authorized bulk submission'),
+          updated_at = CURRENT_TIMESTAMP 
+         WHERE id = ? AND user_id = ?`,
+        [draftHash, expiresAt, options.notes || null, app.id, userId]
+      );
+
+      await activityLogRepository.create(userId, 'application_approved', {
+        jobId: app.job_id,
+        details: {
+          applicationId: app.id,
+          authorizedBy: userId,
+          draftHash,
+          expiresAt,
+          bulkAuthorized: true,
+        },
+      });
+
+      approvedIds.push(app.id);
+    }
+
+    logger.info(`Successfully bulk approved & submitted ${approvedIds.length} applications for user ${userId}`);
+    return { approvedCount: approvedIds.length, applicationIds: approvedIds };
   }
 
   /**

@@ -135,17 +135,31 @@ export async function approveReview(req: Request, res: Response) {
 }
 
 /**
- * Bulk approval is explicitly disabled by system policy.
+ * Bulk approval authorized by candidate confirmation.
  */
 export async function approveAllReviews(req: Request, res: Response) {
-  const { confirmed } = req.body || {};
-  if (confirmed !== true) {
-    throw new AppError(400, 'Explicit confirmation required for bulk application approval (body: { confirmed: true })');
-  }
+  try {
+    const userId = req.userId;
+    if (!userId) throw new AppError(401, 'Unauthorized');
 
-  res.status(403).json({
-    error: 'Bulk approval is disabled by system policy. Individual review and approval is required for candidate safety.',
-  });
+    const { confirmed, notes } = req.body || {};
+    if (confirmed !== true) {
+      throw new AppError(400, 'Explicit confirmation required for bulk application approval (body: { confirmed: true })');
+    }
+
+    const result = await reviewAgent.approveAll(userId, { confirmed: true, notes });
+
+    res.json({
+      message: `Successfully authorized and submitted all ${result.approvedCount} application drafts!`,
+      ...result,
+    });
+  } catch (error: any) {
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ error: error.message });
+    } else {
+      res.status(400).json({ error: error.message || 'Failed to approve all applications' });
+    }
+  }
 }
 
 /**
