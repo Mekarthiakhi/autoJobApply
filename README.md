@@ -4,6 +4,8 @@ An open-source, multi-user, full-stack AI job discovery, resume tailoring, and *
 
 Unlike basic trackers that only log jobs locally, AutoApply AI **verifies every external submission honestly** — capturing live company page screenshots, tracking official company replies in your inbox, and sending hourly **Email + WhatsApp verification reports** to each user.
 
+> 📖 **Complete User & Architecture Guide:** See [USER_AND_ARCHITECTURE_GUIDE.md](./docs/USER_AND_ARCHITECTURE_GUIDE.md) for full instructions on uploading resumes, managing active/inactive cron schedules, and verifying proof screenshots.
+
 ## Key Features
 
 - **10 Live Job Portals (Direct Company ATS First):**
@@ -77,3 +79,4 @@ See [.env.example](./.env.example) for the complete list of optional and require
 ## License
 
 MIT License — see [LICENSE](./LICENSE).
+
