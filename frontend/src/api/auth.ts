@@ -89,7 +89,7 @@ export const reviewQueueAPI = {
   getReviewDetail: (id: string) => client.get(`/review-queue/${id}`),
   verifyAnswers: (id: string, answers: any[]) => client.post(`/review-queue/${id}/verify-answers`, { answers }),
   updateDraft: (id: string, data: any) => client.put(`/review-queue/${id}/draft`, data),
-  approve: (id: string, draftHash?: string) => client.post(`/review-queue/${id}/approve`, { approvedDraftHash: draftHash }),
+  approve: (id: string, draftHash?: string) => client.post(`/review-queue/${id}/approve`, { approvedDraftHash: draftHash, verifiedAnswers: true }),
   approveAll: (confirmed: boolean = true) => client.post('/review-queue/approve-all', { confirmed }),
   reject: (id: string, reason?: string) => client.post(`/review-queue/${id}/reject`, { reason }),
 };

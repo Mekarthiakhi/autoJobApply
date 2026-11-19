@@ -142,7 +142,7 @@ export class MultiAgentPipelineOrchestrator {
             `INSERT INTO resume_versions (id, user_id, label, file_name, text_content, skills, structured_data, version_number, is_default)
              VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)`,
             [newVersionId, userId, label, baseResumeRow.file_name, baseResumeRow.text_content, baseResumeRow.skills || '[]', baseResumeRow.builder_data || null]
-          ).catch(() => {});
+          ).catch((e) => logger.warn('Failed to insert default resume_version from resumes', e));
           resumeRow = { id: newVersionId, text_content: baseResumeRow.text_content };
         }
       }
@@ -457,7 +457,7 @@ export class MultiAgentPipelineOrchestrator {
                     await reviewAgent.approve(userId, appId, {
                       verifiedAnswers: true,
                       notes: extResult.proof.confirmationText || extResult.proof.reason,
-                    }).catch(() => {});
+                    }).catch((e) => logger.warn('Review approval note after external submission:', e));
                   }
 
                   await db.run(
@@ -502,6 +502,7 @@ export class MultiAgentPipelineOrchestrator {
                   );
                 } catch (autoErr: any) {
                   logger.warn(`External submit attempt failed for "${job.title}"`, { error: autoErr.message });
+                  errors.push(`External apply attempt for "${job.title}" at "${job.company_name}": ${autoErr.message}`);
                 }
               } else {
                 logger.info(`📋 Application draft queued for human review: "${job.title}" at "${job.company_name}"`, {

@@ -47,6 +47,7 @@ export async function initializeDatabase() {
       email VARCHAR(255) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       full_name VARCHAR(255),
+      phone_number VARCHAR(50),
       role VARCHAR(50) DEFAULT 'user',
       preferred_locations TEXT DEFAULT '["Remote"]',
       employment_type VARCHAR(50) DEFAULT 'Full-Time',

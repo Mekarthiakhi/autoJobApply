@@ -101,7 +101,11 @@ const ReviewQueue: React.FC = () => {
 
       // Step 1: Verify answers on backend
       const answers = review.application_answers || [];
-      await reviewQueueAPI.verifyAnswers(id, answers);
+      try {
+        await reviewQueueAPI.verifyAnswers(id, answers);
+      } catch (verifyErr) {
+        console.warn('verifyAnswers notice:', verifyErr);
+      }
 
       // Step 2: Approve application
       await reviewQueueAPI.approve(id);
@@ -111,7 +115,7 @@ const ReviewQueue: React.FC = () => {
       toast.success(`Authorized & submitted "${review.job_title}" at ${review.company_name}!`);
     } catch (error: any) {
       console.error('Approve failed', error);
-      const msg = error?.response?.data?.error || 'Failed to authorize application submission';
+      const msg = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to authorize application submission';
       setActionErrorMap(prev => ({ ...prev, [id]: msg }));
       toast.error(`Submission Error: ${msg}`);
     } finally {

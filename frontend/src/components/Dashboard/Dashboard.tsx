@@ -141,8 +141,9 @@ export const Dashboard: React.FC = () => {
           : response.data?.message || 'Multi-agent pipeline completed successfully'
       );
       await fetchDashboard();
-    } catch (err) {
-      toast.error('Error initiating agent pipeline');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Error initiating agent pipeline';
+      toast.error(msg);
     } finally {
       setRunningAgents(false);
     }

@@ -6,7 +6,8 @@ import { useAuth } from '../../hooks/useAuth';
 
 export const Settings: React.FC = () => {
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const [fullName, setFullName] = useState(user?.fullName || '');
   const [preferredLocations, setPreferredLocations] = useState<string[]>(['Remote']);
   const [newLocation, setNewLocation] = useState('');
   const [isAddingLocation, setIsAddingLocation] = useState(false);
@@ -43,6 +44,7 @@ export const Settings: React.FC = () => {
           resumeAPI.getResume().catch(() => ({ data: null })),
         ]);
         const profile = profileRes.data;
+        if (profile.fullName) setFullName(profile.fullName);
         if (profile.preferredLocations) {
           let locs = profile.preferredLocations;
           if (typeof locs === 'string') {
@@ -85,6 +87,7 @@ export const Settings: React.FC = () => {
       setSaving(true);
       setSaveMessage(null);
       const saveRes = await authAPI.updateProfile({
+        fullName,
         preferredLocations,
         minMatchScore,
         employmentType: 'Full-Time',
@@ -102,6 +105,9 @@ export const Settings: React.FC = () => {
         imapPassword: imapPassword || undefined,
         imapHost,
       });
+      if (refreshProfile) {
+        await refreshProfile().catch(() => {});
+      }
       if (saveRes.data?.nextAutoApplyRunAt) setNextAutoApplyRunAt(saveRes.data.nextAutoApplyRunAt);
       if (imapPassword) {
         setImapPasswordConfigured(true);
@@ -199,6 +205,38 @@ export const Settings: React.FC = () => {
       </div>
 
       <div className="settings-grid">
+        <div className="setting-section" style={{ gridColumn: '1 / -1' }}>
+          <div className="setting-title">Candidate Profile</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '14px' }}>
+            Your name is displayed in the navigation and used to personalize tailored AI resumes, cover letters, and applications.
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+                Full Name
+              </label>
+              <input
+                type="text"
+                className="neumo-input"
+                placeholder="Candidate Full Name (e.g. Alex Johnson)"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+                Account Email
+              </label>
+              <input
+                type="text"
+                className="neumo-input opacity-70 cursor-not-allowed"
+                value={user?.email || ''}
+                disabled
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="setting-section">
           <div className="setting-title">Job preferences</div>
           

@@ -354,6 +354,8 @@ export async function updateProfile(req: Request, res: Response) {
     }
 
     const {
+      fullName,
+      name,
       preferredLocations,
       employmentType,
       minMatchScore,
@@ -379,11 +381,17 @@ export async function updateProfile(req: Request, res: Response) {
       ? preferredLocations
       : JSON.stringify(['Remote']);
 
-    const user = await userRepository.update(userId, {
+    const userUpdates: any = {
       preferred_locations: locsJson,
       employment_type: employmentType,
       min_match_score: minMatchScore,
-    } as any);
+    };
+    const newName = (fullName || name);
+    if (typeof newName === 'string' && newName.trim().length > 0) {
+      userUpdates.full_name = newName.trim();
+    }
+
+    const user = await userRepository.update(userId, userUpdates);
 
     const db = await getDatabase();
     const existingSettings = await db.get<{ imap_password: string | null; last_auto_apply_run_at: string | null }>(

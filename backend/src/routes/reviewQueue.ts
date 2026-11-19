@@ -19,7 +19,8 @@ router.post('/approve-all', authMiddleware, approveAllReviews);
 
 // Individual application operations
 router.get('/:id', authMiddleware, getReviewDetail);
-router.post('/:id/verify', authMiddleware, verifyAnswers);
+router.post('/:id/verify', authMiddleware, verifyAnswers);           // legacy alias
+router.post('/:id/verify-answers', authMiddleware, verifyAnswers);  // frontend canonical route
 router.put('/:id/draft', authMiddleware, updateDraft);
 router.post('/:id/approve', authMiddleware, approveReview);
 router.post('/:id/reject', authMiddleware, rejectReview);

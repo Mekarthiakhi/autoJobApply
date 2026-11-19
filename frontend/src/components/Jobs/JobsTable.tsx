@@ -164,9 +164,10 @@ export const JobsTable: React.FC = () => {
           ? `Discovered ${discovered} live jobs across portals and queued ${queued || 0} drafts in Review Queue!`
           : 'Live multi-portal job discovery completed!'
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error('Job discovery failed', err);
-      toast.error('Failed to run job discovery pipeline.');
+      const msg = err?.response?.data?.error || err?.message || 'Failed to run job discovery pipeline.';
+      toast.error(msg);
     } finally {
       setDiscovering(false);
     }
