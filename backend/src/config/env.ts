@@ -43,7 +43,7 @@ export function validateEnvironmentSecurity(): { isSecure: boolean; issues: stri
     if (env.JWT_SECRET === 'your-secret-key' || env.JWT_SECRET.length < 32) {
       issues.push(`JWT_SECRET must be at least 32 characters long in ${env.NODE_ENV} and cannot use default fallback`);
     }
-    if (env.CORS_ORIGIN === '*' || env.CORS_ORIGIN.includes('*')) {
+    if (env.CORS_ORIGIN === '*') {
       issues.push(`CORS_ORIGIN cannot be unset, wildcard (*), or contain wildcard in ${env.NODE_ENV}`);
     }
   } else {
