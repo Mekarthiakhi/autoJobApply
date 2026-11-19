@@ -374,26 +374,49 @@ export const Settings: React.FC = () => {
           </div>
 
           {whatsappEnabled && (
-            <div style={{ marginTop: '10px', marginBottom: '12px', padding: '12px', borderRadius: '10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.22)' }}>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginBottom: '10px', lineHeight: 1.5 }}>
-                Free 30-second auto-push setup: Save <strong>+34 644 71 98 39</strong> on WhatsApp, send{' '}
-                <code style={{ color: '#4ade80' }}>I allow callmebot to send me messages</code>, then paste your number &amp; API key below:
+            <div style={{ marginTop: '10px', marginBottom: '12px', padding: '14px', borderRadius: '10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.22)' }}>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', marginBottom: '10px', lineHeight: 1.6 }}>
+                <strong style={{ color: '#4ade80' }}>Free 30-Second Setup to receive WhatsApp alerts:</strong>
+                <ol style={{ margin: '6px 0 10px 18px', padding: 0, color: 'rgba(255,255,255,0.75)' }}>
+                  <li>
+                    <a
+                      href="https://wa.me/34644719839?text=I%20allow%20callmebot%20to%20send%20me%20messages"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: '#22c55e', textDecoration: 'underline', fontWeight: 600 }}
+                    >
+                      Click here to open WhatsApp (+34 644 71 98 39) ↗
+                    </a>
+                  </li>
+                  <li>
+                    Send the pre-filled message: <code style={{ color: '#4ade80', background: 'rgba(0,0,0,0.3)', padding: '2px 5px', borderRadius: '4px' }}>I allow callmebot to send me messages</code>
+                  </li>
+                  <li>
+                    CallMeBot will reply with your API Key (e.g. <code style={{ color: '#38bdf8' }}>123456</code>). Paste it below and click <strong>Save Settings</strong>.
+                  </li>
+                </ol>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  className="neumo-input"
-                  placeholder="WhatsApp Phone (e.g. +919876543210)"
-                  value={whatsappPhone}
-                  onChange={(e) => setWhatsappPhone(e.target.value)}
-                />
-                <input
-                  type="text"
-                  className="neumo-input"
-                  placeholder="CallMeBot API Key"
-                  value={whatsappApiKey}
-                  onChange={(e) => setWhatsappApiKey(e.target.value)}
-                />
+                <div>
+                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>Your WhatsApp Phone Number</label>
+                  <input
+                    type="text"
+                    className="neumo-input"
+                    placeholder="WhatsApp Phone (e.g. +919876543210)"
+                    value={whatsappPhone}
+                    onChange={(e) => setWhatsappPhone(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>CallMeBot API Key (from WhatsApp reply)</label>
+                  <input
+                    type="text"
+                    className="neumo-input"
+                    placeholder="e.g. 123456"
+                    value={whatsappApiKey}
+                    onChange={(e) => setWhatsappApiKey(e.target.value)}
+                  />
+                </div>
               </div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginTop: '8px' }}>
                 {whatsappPhone 
