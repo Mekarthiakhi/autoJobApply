@@ -417,22 +417,44 @@ export const Settings: React.FC = () => {
                 <strong style={{ color: '#4ade80' }}>Free 30-Second Setup to receive WhatsApp alerts:</strong>
                 <ol style={{ margin: '6px 0 10px 18px', padding: 0, color: 'rgba(255,255,255,0.75)' }}>
                   <li>
-                    <a
-                      href="https://wa.me/34644719839?text=I%20allow%20callmebot%20to%20send%20me%20messages"
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ color: '#22c55e', textDecoration: 'underline', fontWeight: 600 }}
-                    >
-                      Click here to open WhatsApp (+34 644 71 98 39) ↗
-                    </a>
+                    Tap one of the free bot servers to open WhatsApp:
+                    <div style={{ marginTop: '4px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <a
+                        href="https://wa.me/34644719839?text=I%20allow%20callmebot%20to%20send%20me%20messages"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#22c55e', textDecoration: 'underline', fontWeight: 600 }}
+                      >
+                        Server 1 (+34 644 71 98 39) ↗
+                      </a>
+                      <a
+                        href="https://wa.me/34644155486?text=I%20allow%20callmebot%20to%20send%20me%20messages"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#38bdf8', textDecoration: 'underline', fontWeight: 600 }}
+                      >
+                        Server 2 (+34 644 15 54 86) ↗
+                      </a>
+                      <a
+                        href="https://wa.me/34644442062?text=I%20allow%20callmebot%20to%20send%20me%20messages"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#a78bfa', textDecoration: 'underline', fontWeight: 600 }}
+                      >
+                        Server 3 (+34 644 44 20 62) ↗
+                      </a>
+                    </div>
                   </li>
-                  <li>
+                  <li style={{ marginTop: '6px' }}>
                     Send the pre-filled message: <code style={{ color: '#4ade80', background: 'rgba(0,0,0,0.3)', padding: '2px 5px', borderRadius: '4px' }}>I allow callmebot to send me messages</code>
                   </li>
                   <li>
                     CallMeBot will reply with your API Key (e.g. <code style={{ color: '#38bdf8' }}>123456</code>). Paste it below and click <strong>Save Settings</strong>.
                   </li>
                 </ol>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+                  💡 <em>Note: If you don't receive a reply, the bot queue may be busy. You can simply turn the toggle switch above <strong>OFF</strong> — all job applications, resumes, and email reports will still work 100% normally!</em>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
