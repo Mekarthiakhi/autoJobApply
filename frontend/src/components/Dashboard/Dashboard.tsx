@@ -712,16 +712,22 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Metric 2: Jobs Shortlisted */}
-        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-emerald-500/30 transition-all shadow-sm">
+        {/* Metric 2: AI-Matched Jobs */}
+        <div
+          className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-emerald-500/30 transition-all shadow-sm"
+          title="Jobs matched and selected by your AI Agent based on resume qualifications (≥70% score). This is AI candidate matching, not company interview decisions."
+        >
           <div className="flex justify-between items-start">
             <div className="p-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/30"><Sparkles size={16} className="text-emerald-400" /></div>
-            <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Match Rank</span>
+            <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-semibold">AI Match Rank</span>
           </div>
           <div className="kpi-num text-2xl font-bold text-emerald-400 mt-2">{metrics.jobsShortlisted}</div>
-          <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Jobs Shortlisted</div>
+          <div className="kpi-label text-xs text-gray-200 font-semibold mt-0.5">AI-Matched Jobs</div>
           <div className="kpi-trend text-[11px] text-emerald-400 mt-1.5 flex items-center">
-            <ArrowUp size={11} className="inline mr-1" /> compatibility &ge; 70%
+            <ArrowUp size={11} className="inline mr-1" /> resume match &ge; 70%
+          </div>
+          <div className="text-[10px] text-gray-400 mt-1">
+            AI shortlisted for your review
           </div>
         </div>
 
@@ -791,15 +797,21 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Metric 8: Interview Invitations */}
-        <div className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-amber-500/30 transition-all shadow-sm">
+        <div
+          className="kpi-card p-3.5 rounded-xl bg-slate-900/75 border border-slate-800/80 hover:border-amber-500/30 transition-all shadow-sm"
+          title="Actual interview rounds, recruiter outreach, and company shortlist invitations received from employers."
+        >
           <div className="flex justify-between items-start">
             <div className="p-1.5 rounded-lg bg-amber-950/70 border border-amber-500/30"><Target size={16} className="text-amber-400" /></div>
-            <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Interviews</span>
+            <span className="text-[10px] uppercase font-mono tracking-wider text-amber-400 font-semibold">Company Decision</span>
           </div>
           <div className="kpi-num text-2xl font-bold text-amber-400 mt-2">{metrics.interviewInvitations}</div>
-          <div className="kpi-label text-xs text-gray-400 font-medium mt-0.5">Interview Invitations</div>
+          <div className="kpi-label text-xs text-gray-200 font-semibold mt-0.5">Company Interviews / Offers</div>
           <div className="kpi-trend text-[11px] text-amber-400 mt-1.5 flex items-center">
-            rounds in progress
+            employer interview rounds
+          </div>
+          <div className="text-[10px] text-gray-400 mt-1">
+            Shortlist invites from recruiters
           </div>
         </div>
       </div>

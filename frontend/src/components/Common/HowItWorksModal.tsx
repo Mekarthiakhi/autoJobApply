@@ -363,6 +363,16 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
               <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(30, 41, 59, 0.5)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <h4 style={{ margin: '0 0 6px', fontSize: '14px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <HelpCircle size={16} color="#818cf8" />
+                  What is "AI-Matched Jobs" (Shortlisted)? Does it mean a company shortlisted me?
+                </h4>
+                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
+                  <strong>No.</strong> "AI-Matched Jobs" means our autonomous AI Agent analyzed the discovered job postings and <strong>shortlisted them for you</strong> because your resume matches their requirements with a score &ge; 70%. When an employer actually reviews your submitted application and calls you for an interview, that appears under <strong>"Company Interviews / Offers"</strong>.
+                </p>
+              </div>
+
+              <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(30, 41, 59, 0.5)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <h4 style={{ margin: '0 0 6px', fontSize: '14px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <HelpCircle size={16} color="#818cf8" />
                   Does uploading my resume immediately apply to companies?
                 </h4>
                 <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
