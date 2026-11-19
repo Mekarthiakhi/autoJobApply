@@ -1,14 +1,12 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
     environment:
-      NODE_ENV: ${NODE_ENV:-staging}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 5000
       DB_PATH: /app/data/jobs.db
-      JWT_SECRET: ${JWT_SECRET:?Error: JWT_SECRET is required and must be at least 32 characters}
-      CORS_ORIGIN: ${CORS_ORIGIN:?Error: CORS_ORIGIN is required with explicit allowed domains}
+      JWT_SECRET: "${JWT_SECRET:-super-secret-development-key-at-least-32-chars-long}"
+      CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost:3000,http://127.0.0.1:3000}"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -23,8 +21,7 @@ services:
       - ./backend/screenshots:/app/screenshots
       - ./backend/exports:/app/exports
     ports:
-      # Restrict direct public access; only loopback interface for reverse proxy
-      - "127.0.0.1:5000:5000"
+      - "5000:5000"
     networks:
       - job-automation
     restart: unless-stopped
@@ -33,10 +30,9 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
     ports:
-      # Restrict direct public access; only loopback interface for reverse proxy
-      - "127.0.0.1:3000:3000"
+      - "3000:3000"
     depends_on:
       - backend
     networks:
@@ -46,4 +42,3 @@ services:
 networks:
   job-automation:
     driver: bridge
-
