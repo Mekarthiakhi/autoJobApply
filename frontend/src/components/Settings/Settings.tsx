@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { authAPI, resumeAPI, applicationsAPI } from '../../api/auth';
 import { Save, Send } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../hooks/useAuth';
 
 export const Settings: React.FC = () => {
   const toast = useToast();
+  const { user } = useAuth();
   const [preferredLocations, setPreferredLocations] = useState<string[]>(['Remote']);
   const [newLocation, setNewLocation] = useState('');
   const [isAddingLocation, setIsAddingLocation] = useState(false);
@@ -126,8 +128,15 @@ export const Settings: React.FC = () => {
       formData.append('resume', file);
       await resumeAPI.uploadResume(formData);
       setCurrentResumeName(file.name);
+      // Immediately refresh profile to load the phone number extracted from this resume
+      const profileRes = await authAPI.getProfile().catch(() => ({ data: null }));
+      if (profileRes?.data?.whatsappPhone) {
+        setWhatsappPhone(profileRes.data.whatsappPhone);
+        toast.success(`"${file.name}" uploaded! Auto-detected phone: ${profileRes.data.whatsappPhone}`);
+      } else {
+        toast.success(`"${file.name}" uploaded and parsed successfully!`);
+      }
       setSaveMessage(`Uploaded ${file.name} successfully.`);
-      toast.success(`"${file.name}" uploaded and parsed successfully!`);
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err: any) {
       console.error('Resume upload failed', err);
@@ -178,8 +187,14 @@ export const Settings: React.FC = () => {
     <div className="content fade-in">
       <div className="section-header">
         <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-950/70 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              Active Profile: {user?.fullName || 'Candidate'} ({user?.email})
+            </span>
+          </div>
           <div className="section-title">Settings</div>
-          <div className="section-sub">Customize your job hunt preferences</div>
+          <div className="section-sub">Customize automation preferences for {user?.fullName || user?.email || 'your account'}</div>
         </div>
       </div>
 
@@ -349,8 +364,8 @@ export const Settings: React.FC = () => {
               <div className="toggle-name">WhatsApp Reports (Auto-Extracted Phone)</div>
               <div className="toggle-desc">
                 {whatsappPhone
-                  ? `Active mobile from resume/settings: ${whatsappPhone} · pushes hourly verified reports`
-                  : 'Automatically extracts mobile number from your uploaded resume & pushes hourly reports'}
+                  ? `Phone auto-extracted from resume: ${whatsappPhone} · pushes hourly verified reports`
+                  : 'Automatically extracts mobile number from your uploaded resume (upload resume in /resume or below)'}
               </div>
             </div>
             <div className={`toggle ${whatsappEnabled ? 'on' : ''}`} onClick={() => setWhatsappEnabled(!whatsappEnabled)}>
@@ -379,6 +394,11 @@ export const Settings: React.FC = () => {
                   value={whatsappApiKey}
                   onChange={(e) => setWhatsappApiKey(e.target.value)}
                 />
+              </div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginTop: '8px' }}>
+                {whatsappPhone 
+                  ? `✅ Mobile ${whatsappPhone} automatically extracted from your resume. You can also edit it above if needed.`
+                  : 'ℹ️ No phone number detected in resume yet. Upload your resume in /resume to auto-detect, or enter your mobile number above.'}
               </div>
             </div>
           )}

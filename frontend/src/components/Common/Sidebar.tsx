@@ -5,12 +5,26 @@ import { useAuth } from '../../hooks/useAuth';
 import styles from './Common.module.css';
 
 export const Sidebar: React.FC = () => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return name.slice(0, 2).toUpperCase();
+    }
+    if (email && email.includes('@')) {
+      return email.slice(0, 2).toUpperCase();
+    }
+    return 'U';
   };
 
   return (
@@ -118,6 +132,46 @@ export const Sidebar: React.FC = () => {
       </nav>
       
       <div className={styles.footer}>
+        {user && (
+          <div style={{
+            padding: '10px 12px',
+            marginBottom: '12px',
+            borderRadius: '12px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <div style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #4F8EF7 0%, #10B981 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+              fontSize: '13px',
+              color: '#ffffff',
+              flexShrink: 0
+            }}>
+              {getInitials(user.fullName, user.email)}
+            </div>
+            <div style={{ overflow: 'hidden', flex: 1 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user.fullName || user.email?.split('@')[0] || 'Candidate'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user.email}
+              </div>
+              <div style={{ fontSize: '10px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontWeight: 500 }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                Logged in
+              </div>
+            </div>
+          </div>
+        )}
         <button className={styles.logoutBtn} onClick={handleLogout}>
           <LogOut size={20} />
           <span>Logout</span>

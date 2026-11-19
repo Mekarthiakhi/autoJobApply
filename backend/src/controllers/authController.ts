@@ -283,6 +283,15 @@ export async function getProfile(req: Request, res: Response) {
         whatsappPhone = extractMobilePhoneFromResume(resumeRow.text_content) || '';
       }
     }
+    if (!whatsappPhone) {
+      const rvRow = await db.get<{ text_content: string }>(
+        `SELECT text_content FROM resume_versions WHERE user_id = ? AND text_content IS NOT NULL ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
+        [userId]
+      );
+      if (rvRow?.text_content) {
+        whatsappPhone = extractMobilePhoneFromResume(rvRow.text_content) || '';
+      }
+    }
 
     let parsedLocs: string[] = ['Remote'];
     if (user.preferred_locations) {

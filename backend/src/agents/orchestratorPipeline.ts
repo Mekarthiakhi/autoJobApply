@@ -15,6 +15,7 @@ import { reviewAgent } from '../services/reviewAgent.js';
 import { externalSubmitter } from '../services/externalSubmitter.js';
 import { sendApplicationRunSummaryEmail, ApplicationReportItem } from '../utils/email.js';
 import { whatsappService } from '../services/whatsappService.js';
+import { extractMobilePhoneFromResume } from '../utils/phoneExtractor.js';
 
 export interface WorkflowPipelineOptions {
   workflowId?: string;
@@ -529,13 +530,23 @@ export class MultiAgentPipelineOrchestrator {
           );
         }
 
-        const waEnabled = autoSettings?.whatsapp_enabled === 1 || Boolean(process.env.WHATSAPP_PHONE && process.env.CALLMEBOT_API_KEY);
+        const waEnabled = autoSettings?.whatsapp_enabled === 1 || Boolean(autoSettings?.whatsapp_phone);
         if (waEnabled) {
+          let targetPhone = autoSettings?.whatsapp_phone;
+          if (!targetPhone) {
+            const resRow = await db.get<{ text_content: string }>(
+              `SELECT text_content FROM resumes WHERE user_id = ? LIMIT 1`,
+              [userId]
+            );
+            if (resRow?.text_content) {
+              targetPhone = extractMobilePhoneFromResume(resRow.text_content) || undefined;
+            }
+          }
           const appUrl = process.env.FRONTEND_URL || 'https://autojobapply-production-69da9ff5.up.railway.app';
           const waMsg = whatsappService.buildRunSummaryMessage(reportItems, appUrl.replace(/\/$/, ''));
           whatsappService
             .sendMessage(waMsg, {
-              phone: autoSettings?.whatsapp_phone,
+              phone: targetPhone,
               apiKey: autoSettings?.whatsapp_api_key,
             })
             .catch((err) => logger.warn('WhatsApp notification skipped', err));

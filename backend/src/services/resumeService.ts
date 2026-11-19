@@ -127,11 +127,7 @@ export class ResumeService {
           `INSERT INTO automation_settings (user_id, auto_apply_enabled, auto_apply_threshold, email_notifications, whatsapp_phone)
            VALUES (?, 1, 55, 1, ?)
            ON CONFLICT (user_id) DO UPDATE SET
-             whatsapp_phone = CASE
-               WHEN automation_settings.whatsapp_phone IS NULL OR TRIM(automation_settings.whatsapp_phone) = ''
-               THEN excluded.whatsapp_phone
-               ELSE automation_settings.whatsapp_phone
-             END,
+             whatsapp_phone = excluded.whatsapp_phone,
              updated_at = CURRENT_TIMESTAMP`,
           [userId, extractedPhone]
         );

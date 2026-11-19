@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { dashboardAPI } from '../../api/auth';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../hooks/useAuth';
 import { Link } from 'react-router-dom';
 import {
   Search, Sparkles, Target, ArrowUp, Inbox, CheckCircle2,
@@ -58,6 +59,7 @@ interface SourcePerf {
 
 export const Dashboard: React.FC = () => {
   const toast = useToast();
+  const { user } = useAuth();
   const [metrics, setMetrics] = useState<MetricData>({
     totalJobsDiscovered: 0,
     jobsShortlisted: 0,
@@ -169,7 +171,15 @@ export const Dashboard: React.FC = () => {
       {/* Header Section */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Application Intelligence Dashboard</h1>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Logged in as {user?.fullName || user?.email || 'Candidate'}
+            </span>
+          </div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">
+            Welcome back, {user?.fullName || 'Candidate'}
+          </h1>
           <p className="text-gray-400 text-sm mt-1">Real-time pipeline metrics, conversion intelligence, and workflow observability</p>
         </div>
         <div className="flex items-center gap-3">

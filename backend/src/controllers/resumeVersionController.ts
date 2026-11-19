@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { ResumeVersionRepository } from '../repositories/resumeVersionRepository.js';
 import { ApplicationRepository } from '../repositories/applicationRepository.js';
 import { JobRepository } from '../repositories/jobRepository.js';
+import { getDatabase } from '../config/database.js';
+import { extractMobilePhoneFromResume } from '../utils/phoneExtractor.js';
 import { 
   candidateExtractor, 
   atsEvaluator, 
@@ -122,6 +124,24 @@ export async function createResumeVersion(req: Request, res: Response) {
         structuredData,
       }
     );
+
+    // Auto-extract and sync phone number from this uploaded resume version
+    const extractedPhone = extractMobilePhoneFromResume(textContent);
+    if (extractedPhone) {
+      try {
+        const db = await getDatabase();
+        await db.run(
+          `INSERT INTO automation_settings (user_id, auto_apply_enabled, auto_apply_threshold, email_notifications, whatsapp_phone)
+           VALUES (?, 1, 55, 1, ?)
+           ON CONFLICT (user_id) DO UPDATE SET
+             whatsapp_phone = excluded.whatsapp_phone,
+             updated_at = CURRENT_TIMESTAMP`,
+          [userId, extractedPhone]
+        );
+      } catch (phoneErr) {
+        console.warn('Could not sync phone from resume version:', phoneErr);
+      }
+    }
 
     res.status(201).json({
       ...version,

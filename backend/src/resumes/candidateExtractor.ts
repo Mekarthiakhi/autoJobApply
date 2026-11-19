@@ -9,6 +9,7 @@ import {
 } from './types.js';
 import { aiModelManager } from '../ai/index.js';
 import { logger } from '../utils/logger.js';
+import { extractMobilePhoneFromResume } from '../utils/phoneExtractor.js';
 
 // Predefined skill dictionary for high-precision extraction
 const SKILL_DICTIONARY = {
@@ -194,9 +195,8 @@ Return ONLY valid JSON matching this schema:
     const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i);
     const email = emailMatch ? emailMatch[0] : '';
 
-    // Phone regex (international & US formats)
-    const phoneMatch = rawText.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-    const phone = phoneMatch ? phoneMatch[0].trim() : undefined;
+    // Phone extraction (international, Indian, US formats)
+    const phone = extractMobilePhoneFromResume(rawText) || undefined;
 
     // LinkedIn URL
     const linkedinMatch = rawText.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
