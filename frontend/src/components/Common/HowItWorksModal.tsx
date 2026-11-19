@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, FileText, Sliders, Sparkles, CheckCircle2, ShieldCheck, HelpCircle, ArrowRight, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -12,18 +13,25 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div
       style={{
         position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 999999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(5, 7, 15, 0.85)',
         backdropFilter: 'blur(8px)',
-        padding: '16px',
+        padding: '20px 16px',
+        boxSizing: 'border-box',
+        overflowY: 'auto',
       }}
       onClick={onClose}
     >
@@ -32,27 +40,30 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
           position: 'relative',
           width: '100%',
           maxWidth: '820px',
-          maxHeight: '90vh',
+          maxHeight: 'min(90vh, 760px)',
+          height: 'auto',
           backgroundColor: '#0f172a',
           borderRadius: '16px',
-          border: '1px solid rgba(99, 102, 241, 0.25)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(99, 102, 241, 0.15)',
+          border: '1px solid rgba(99, 102, 241, 0.35)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 40px rgba(99, 102, 241, 0.25)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           color: '#f8fafc',
+          margin: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div
           style={{
-            padding: '20px 24px',
+            flexShrink: 0,
+            padding: '18px 24px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
+            background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -142,7 +153,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Modal Body */}
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, lineHeight: 1.5 }}>
+        <div style={{ padding: '24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0, lineHeight: 1.5 }}>
           {activeTab === 'steps' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               {/* Step 1 */}
@@ -395,6 +406,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
         {/* Modal Footer */}
         <div
           style={{
+            flexShrink: 0,
             padding: '16px 24px',
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
@@ -428,4 +440,6 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
