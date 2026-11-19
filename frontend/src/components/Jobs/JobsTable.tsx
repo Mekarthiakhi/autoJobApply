@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useJobs } from '../../hooks/useJobs';
+import { useAuth } from '../../hooks/useAuth';
 import { applicationsAPI, dashboardAPI, jobsAPI } from '../../api/auth';
-import { Search, SlidersHorizontal, Clock, Home, Building, RefreshCw, ExternalLink, Globe } from 'lucide-react';
+import { Search, SlidersHorizontal, Clock, Home, Building, RefreshCw, ExternalLink, Globe, Sparkles, AlertCircle } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 interface PortalStatus {
@@ -53,6 +55,8 @@ function getSourceBadgeStyle(source?: string): { bg: string; color: string; labe
 
 export const JobsTable: React.FC = () => {
   const toast = useToast();
+  const { user } = useAuth();
+  const targetThreshold = typeof user?.minMatchScore === 'number' ? user.minMatchScore : 55;
   const { jobs, loading, fetchJobs, searchJobs } = useJobs();
   const [applications, setApplications] = useState<any[]>([]);
   const [portals, setPortals] = useState<PortalStatus[]>([]);
@@ -113,7 +117,7 @@ export const JobsTable: React.FC = () => {
     if (activelyHiringOnly && !isJobActivelyHiring(j)) return false;
     if (directAtsOnly && !isJobDirectAts(j)) return false;
     if (remoteOnly && !isJobRemote(j)) return false;
-    if (activeTab === 'matched' && score < 55) return false;
+    if (activeTab === 'matched' && score < targetThreshold) return false;
     if (activeTab === 'saved' && !j.is_saved && !appliedJobIds.has(j.id)) return false;
     if (selectedPortal !== 'all' && (j.source || '').toLowerCase() !== selectedPortal) return false;
     return true;
@@ -128,7 +132,7 @@ export const JobsTable: React.FC = () => {
     return t >= oneDayAgo;
   }).length;
 
-  const aiMatchedCount = rawJobs.filter((j: any) => (j.match_score || 0) >= 80).length;
+  const aiMatchedCount = rawJobs.filter((j: any) => (j.match_score || 0) >= targetThreshold).length;
 
   const appliedThisWeek = applications.filter((a: any) => {
     const t = new Date(a.applied_at || a.created_at || 0).getTime();
@@ -224,7 +228,7 @@ export const JobsTable: React.FC = () => {
     <div className="fade-in">
       <div style={{ display: 'flex', gap: '4px', padding: '0 32px', background: '#0D0E1A', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className={`tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All Jobs</div>
-        <div className={`tab ${activeTab === 'matched' ? 'active' : ''}`} onClick={() => setActiveTab('matched')}>Matched (≥80%)</div>
+        <div className={`tab ${activeTab === 'matched' ? 'active' : ''}`} onClick={() => setActiveTab('matched')}>Qualified Matches (≥{targetThreshold}%)</div>
         <div className={`tab ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => setActiveTab('saved')}>Applied / Saved</div>
       </div>
 
@@ -398,7 +402,7 @@ export const JobsTable: React.FC = () => {
           <div className="stat-cell">
             <div className="stat-label">AI Matches</div>
             <div className="stat-val accent">{aiMatchedCount}</div>
-            <div className="stat-delta up">score ≥ 80%</div>
+            <div className="stat-delta up">score ≥ {targetThreshold}%</div>
           </div>
           <div className="stat-cell">
             <div className="stat-label">Applied</div>
@@ -410,6 +414,52 @@ export const JobsTable: React.FC = () => {
             <div className="stat-val green">{successRate}%</div>
             <div className="stat-delta">{applications.length > 0 ? `${positiveOutcomes} of ${applications.length} active` : 'No applications yet'}</div>
           </div>
+        </div>
+
+        {/* Threshold & Auto-Apply Guidance Banner */}
+        <div style={{
+          padding: '12px 18px',
+          background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.45) 0%, rgba(15, 23, 42, 0.65) 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.25)',
+          borderRadius: '12px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          fontSize: '12px',
+          color: '#cbd5e1',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '16px' }}>⚡</span>
+            <div>
+              <span style={{ fontWeight: 600, color: '#f8fafc' }}>Automatic Matching Threshold: &ge; {targetThreshold}%</span>
+              <p style={{ margin: '2px 0 0', color: '#94a3b8', fontSize: '11px' }}>
+                Your background AI Hunter automatically prepares tailored drafts for jobs scoring <strong>&ge; {targetThreshold}%</strong>. Jobs below {targetThreshold}% (e.g. 40%–50% like Reddit or Netlify) can be applied directly using <strong>"Apply Now"</strong>, or included automatically by lowering your threshold in <Link to="/settings" style={{ color: '#818cf8', fontWeight: 600, textDecoration: 'underline' }}>Settings</Link>.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/review-queue"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              background: 'rgba(99, 102, 241, 0.2)',
+              border: '1px solid rgba(99, 102, 241, 0.4)',
+              color: '#c7d2fe',
+              fontSize: '11px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span>Review Queued Drafts</span>
+            &rarr;
+          </Link>
         </div>
 
         <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.25)', marginBottom: '12px', padding: '0 4px' }}>
