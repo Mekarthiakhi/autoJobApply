@@ -48,7 +48,12 @@ export const authAPI = {
 };
 
 export const jobsAPI = {
-  getJobs: (limit = 100) => client.get(`/jobs?limit=${limit}`),
+  getJobs: (params?: any) => {
+    if (typeof params === 'number') {
+      return client.get(`/jobs?limit=${params}`);
+    }
+    return client.get('/jobs', { params: params || { limit: 100 } });
+  },
   getPortals: () => client.get('/jobs/portals'),
   getJobDetails: (jobId: string) => client.get(`/jobs/${jobId}`),
   searchJobs: (keywords: string[]) => client.post('/jobs/search', { keywords }),
@@ -56,6 +61,7 @@ export const jobsAPI = {
 
 export const applicationsAPI = {
   applyToJob: (jobId: string) => client.post('/applications/apply', { jobId }),
+  batchApply: (jobIds?: string[]) => client.post('/applications/batch-apply', { jobIds }),
   getApplications: () => client.get('/applications'),
   updateStatus: (applicationId: string, status: string) =>
     client.put(`/applications/${applicationId}`, { status }),
@@ -72,6 +78,8 @@ export const applicationsAPI = {
 
 export const dashboardAPI = {
   getDashboard: (params?: any) => client.get('/dashboard', { params }),
+  getCardItems: (cardType: string, search?: string) =>
+    client.get('/dashboard/card-items', { params: { cardType, search } }),
   runAgents: (options?: any) => client.post('/agents/run', options),
 };
 

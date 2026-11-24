@@ -110,6 +110,42 @@ export class WhatsAppService {
     lines.push(`View Proof & Screenshots: ${appUrl}/applications`);
     return lines.join('\n');
   }
+
+  async notifyApplicationSubmitted(
+    userId: string,
+    details: {
+      applicationId: string;
+      jobTitle: string;
+      companyName: string;
+      atsPlatform?: string;
+      verified?: boolean;
+    }
+  ): Promise<WhatsAppSendResult> {
+    try {
+      const { getDatabase } = await import('../config/database.js');
+      const db = await getDatabase();
+      const settings = await db.get<{
+        whatsapp_enabled?: number;
+        whatsapp_phone?: string | null;
+        whatsapp_api_key?: string | null;
+      }>(`SELECT whatsapp_enabled, whatsapp_phone, whatsapp_api_key FROM automation_settings WHERE user_id = ?`, [userId]);
+
+      if (!settings?.whatsapp_phone) {
+        return { sent: false, error: 'WhatsApp phone not configured' };
+      }
+
+      const statusText = details.verified ? 'Verified Submitted' : 'Tailored & Prepared (Ready for 1-click apply)';
+      const message = `AutoJobApply Alert\n\nJob: ${details.jobTitle}\nCompany: ${details.companyName}\nPlatform: ${details.atsPlatform || 'Direct'}\nStatus: ${statusText}\nApplication ID: ${details.applicationId}`;
+
+      return await this.sendMessage(message, {
+        phone: settings.whatsapp_phone,
+        apiKey: settings.whatsapp_api_key,
+      });
+    } catch (err: any) {
+      logger.warn('Failed to send WhatsApp application alert', err?.message);
+      return { sent: false, error: err?.message };
+    }
+  }
 }
 
 export const whatsappService = new WhatsAppService();

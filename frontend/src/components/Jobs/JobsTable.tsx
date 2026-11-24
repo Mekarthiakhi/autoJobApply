@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useJobs } from '../../hooks/useJobs';
 import { useAuth } from '../../hooks/useAuth';
 import { applicationsAPI, dashboardAPI, jobsAPI } from '../../api/auth';
-import { Search, SlidersHorizontal, Clock, Home, Building, RefreshCw, ExternalLink, Globe, Sparkles, AlertCircle } from 'lucide-react';
+import { Search, SlidersHorizontal, Clock, Home, Building, RefreshCw, ExternalLink, Globe, Sparkles, AlertCircle, Send, CheckSquare, Square, Check } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 interface PortalStatus {
@@ -53,15 +53,28 @@ function getSourceBadgeStyle(source?: string): { bg: string; color: string; labe
   return map[s] || { bg: 'rgba(255,255,255,0.08)', color: '#cbd5e1', label: s.toUpperCase() };
 }
 
+function parseSkillsList(val: any): string[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string' && val.trim()) {
+    try {
+      const p = JSON.parse(val);
+      if (Array.isArray(p)) return p;
+    } catch {
+      return val.split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 export const JobsTable: React.FC = () => {
   const toast = useToast();
   const { user } = useAuth();
   const targetThreshold = typeof user?.minMatchScore === 'number' ? user.minMatchScore : 55;
-  const { jobs, loading, fetchJobs, searchJobs } = useJobs();
+  const { jobs, candidateProfile, loading, fetchJobs, searchJobs } = useJobs();
   const [applications, setApplications] = useState<any[]>([]);
   const [portals, setPortals] = useState<PortalStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('profile');
   const [selectedPortal, setSelectedPortal] = useState<string>('all');
   const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
@@ -71,6 +84,12 @@ export const JobsTable: React.FC = () => {
   const [remoteOnly, setRemoteOnly] = useState<boolean>(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [batchApplying, setBatchApplying] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; currentJobTitle?: string }>({
+    current: 0,
+    total: 0,
+  });
 
   const loadData = async () => {
     await fetchJobs();
@@ -117,6 +136,11 @@ export const JobsTable: React.FC = () => {
     if (activelyHiringOnly && !isJobActivelyHiring(j)) return false;
     if (directAtsOnly && !isJobDirectAts(j)) return false;
     if (remoteOnly && !isJobRemote(j)) return false;
+    if (activeTab === 'profile') {
+      // In profile view: show jobs that score >= 45 or have matching skills or recommendation 'Apply'/'Maybe'
+      const matched = parseSkillsList(j.matching_skills);
+      if (score < 40 && matched.length === 0 && j.recommendation === 'Skip') return false;
+    }
     if (activeTab === 'matched' && score < targetThreshold) return false;
     if (activeTab === 'saved' && !j.is_saved && !appliedJobIds.has(j.id)) return false;
     if (selectedPortal !== 'all' && (j.source || '').toLowerCase() !== selectedPortal) return false;
@@ -177,18 +201,102 @@ export const JobsTable: React.FC = () => {
     }
   };
 
-  const handleApply = async (jobId: string) => {
+  const handleApply = async (job: any) => {
     try {
-      setApplyingJobId(jobId);
-      await applicationsAPI.applyToJob(jobId);
+      setApplyingJobId(job.id);
+      toast.info(`Tailoring your resume for ${job.company_name} & submitting application...`);
+      const res = await applicationsAPI.applyToJob(job.id);
       await loadData();
-      toast.success('Application submitted and tracked!');
+      toast.success(
+        res.data?.message || `Resume tailored specifically for ${job.company_name} and applied!`
+      );
     } catch (err: any) {
       console.error('Failed to apply', err);
-      toast.error(err?.response?.data?.error || 'Failed to apply');
+      toast.error(err?.response?.data?.error || 'Failed to tailor resume and apply');
     } finally {
       setApplyingJobId(null);
     }
+  };
+
+  const unappliedSafeJobs = safeJobs.filter((j: any) => !appliedJobIds.has(j.id));
+  const areAllSelected = unappliedSafeJobs.length > 0 && unappliedSafeJobs.every((j: any) => selectedJobIds.has(j.id));
+  const isIndeterminate = selectedJobIds.size > 0 && !areAllSelected;
+
+  const toggleSelectJob = (jobId: string) => {
+    setSelectedJobIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) next.delete(jobId);
+      else next.add(jobId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (areAllSelected) {
+      setSelectedJobIds(new Set());
+    } else {
+      setSelectedJobIds(new Set(unappliedSafeJobs.map((j: any) => j.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedJobIds(new Set());
+  };
+
+  const executeBatchApply = async (targetJobIds: string[]) => {
+    if (targetJobIds.length === 0) {
+      toast.info('No eligible unapplied jobs selected.');
+      return;
+    }
+
+    setBatchApplying(true);
+    setBatchProgress({ current: 0, total: targetJobIds.length });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < targetJobIds.length; i++) {
+      const jId = targetJobIds[i];
+      const job = safeJobs.find((j: any) => j.id === jId) || rawJobs.find((j: any) => j.id === jId);
+      const title = job ? `${job.title} at ${job.company_name}` : `Job #${i + 1}`;
+
+      setBatchProgress({ current: i + 1, total: targetJobIds.length, currentJobTitle: title });
+
+      try {
+        await applicationsAPI.applyToJob(jId);
+        successCount++;
+        setApplications((prev) => [...prev, { job_id: jId, status: 'applied' }]);
+      } catch (err: any) {
+        console.error(`Failed to apply to ${title}:`, err);
+        failCount++;
+      }
+    }
+
+    await loadData();
+    setSelectedJobIds(new Set());
+    setBatchApplying(false);
+
+    if (successCount > 0) {
+      toast.success(
+        `🎉 Successfully tailored resumes & applied to ${successCount} jobs${failCount > 0 ? ` (${failCount} failed)` : ''}!`
+      );
+    } else {
+      toast.error('Batch apply encountered errors. Please check individual job postings.');
+    }
+  };
+
+  const handleApplySelected = () => {
+    const ids = Array.from(selectedJobIds).filter((id) => !appliedJobIds.has(id));
+    executeBatchApply(ids);
+  };
+
+  const handleApplyAll = () => {
+    const ids = unappliedSafeJobs.map((j: any) => j.id);
+    if (ids.length === 0) {
+      toast.info('All currently listed jobs have already been applied to!');
+      return;
+    }
+    executeBatchApply(ids);
   };
 
   const getMatchClass = (score: number | null | undefined) => {
@@ -227,12 +335,113 @@ export const JobsTable: React.FC = () => {
   return (
     <div className="fade-in">
       <div style={{ display: 'flex', gap: '4px', padding: '0 32px', background: '#0D0E1A', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className={`tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All Jobs</div>
-        <div className={`tab ${activeTab === 'matched' ? 'active' : ''}`} onClick={() => setActiveTab('matched')}>Qualified Matches (≥{targetThreshold}%)</div>
-        <div className={`tab ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => setActiveTab('saved')}>Applied / Saved</div>
+        <div className={`tab ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
+          🎯 Based on My Profile
+        </div>
+        <div className={`tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>
+          All Jobs ({rawJobs.length})
+        </div>
+        <div className={`tab ${activeTab === 'matched' ? 'active' : ''}`} onClick={() => setActiveTab('matched')}>
+          Qualified Matches (≥{targetThreshold}%)
+        </div>
+        <div className={`tab ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => setActiveTab('saved')}>
+          Applied / Saved ({appliedJobIds.size})
+        </div>
       </div>
 
       <div className="content">
+        {/* Candidate Profile Matching Banner */}
+        {candidateProfile?.hasResume ? (
+          <div style={{
+            padding: '14px 20px',
+            background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.35)',
+            borderRadius: '12px',
+            marginBottom: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={16} className="text-indigo-400" />
+                  Jobs Matched & Ranked for Your Profile
+                </span>
+                <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)', fontWeight: 600 }}>
+                  Profile Active
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>Matched Skills:</span>
+                {(candidateProfile.skills || []).slice(0, 8).map((sk: string) => (
+                  <span key={sk} style={{ fontSize: '11px', padding: '1px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.18)', color: '#c7d2fe', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                    {sk}
+                  </span>
+                ))}
+                {(candidateProfile.skills || []).length > 8 && (
+                  <span style={{ fontSize: '10px', color: '#64748b' }}>+{(candidateProfile.skills || []).length - 8} more</span>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Link
+                to="/resume"
+                style={{
+                  fontSize: '11px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#cbd5e1',
+                  textDecoration: 'none',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  fontWeight: 600,
+                }}
+              >
+                View / Update Resume
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            padding: '14px 20px',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+            borderRadius: '12px',
+            marginBottom: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <AlertCircle size={20} className="text-amber-400 shrink-0" />
+              <div>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#fcd34d' }}>Upload your resume to personalize job matching</span>
+                <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                  Upload your resume in PDF/DOCX to automatically calculate ATS match scores and tailor applications for every job.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/resume"
+              style={{
+                fontSize: '11px',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#000',
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              Upload Resume
+            </Link>
+          </div>
+        )}
         <div className="section-header">
           <div>
             <div className="section-title">Job Matches</div>
@@ -462,6 +671,193 @@ export const JobsTable: React.FC = () => {
           </Link>
         </div>
 
+        {/* Active Batch Progress Banner */}
+        {batchApplying && (
+          <div style={{
+            padding: '16px 20px',
+            background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)',
+            border: '1px solid rgba(108, 99, 255, 0.5)',
+            borderRadius: '12px',
+            marginBottom: '16px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <RefreshCw size={16} className="animate-spin text-indigo-400" />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
+                  AutoApply AI: Tailoring Resumes & Submitting Applications...
+                </span>
+              </div>
+              <span style={{ fontSize: '12px', color: '#c7d2fe', fontWeight: 600, fontFamily: 'monospace' }}>
+                {batchProgress.current} / {batchProgress.total} ({Math.round((batchProgress.current / Math.max(1, batchProgress.total)) * 100)}%)
+              </span>
+            </div>
+            {batchProgress.currentJobTitle && (
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px' }}>
+                Currently tailoring for: <strong style={{ color: '#e2e8f0' }}>{batchProgress.currentJobTitle}</strong>
+              </div>
+            )}
+            <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '999px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${(batchProgress.current / Math.max(1, batchProgress.total)) * 100}%`,
+                background: 'linear-gradient(90deg, #6C63FF 0%, #10b981 100%)',
+                borderRadius: '999px',
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* Batch Selection & Apply Bar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '12px 18px',
+          background: selectedJobIds.size > 0 
+            ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.25) 0%, rgba(30, 27, 75, 0.45) 100%)' 
+            : 'rgba(255, 255, 255, 0.03)',
+          border: selectedJobIds.size > 0 
+            ? '1px solid rgba(99, 102, 241, 0.4)' 
+            : '1px solid rgba(255, 255, 255, 0.07)',
+          borderRadius: '12px',
+          marginBottom: '14px',
+          transition: 'all 0.2s ease',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none', fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
+              <input
+                type="checkbox"
+                checked={areAllSelected && unappliedSafeJobs.length > 0}
+                ref={(el) => { if (el) el.indeterminate = isIndeterminate; }}
+                onChange={toggleSelectAll}
+                disabled={unappliedSafeJobs.length === 0 || batchApplying}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  accentColor: '#6C63FF',
+                  cursor: unappliedSafeJobs.length === 0 ? 'not-allowed' : 'pointer',
+                  borderRadius: '4px',
+                }}
+              />
+              <span>Select All</span>
+              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 400 }}>
+                ({unappliedSafeJobs.length} eligible)
+              </span>
+            </label>
+
+            {selectedJobIds.size > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  background: 'rgba(99, 102, 241, 0.3)',
+                  color: '#c7d2fe',
+                  fontWeight: 600,
+                  border: '1px solid rgba(99, 102, 241, 0.5)',
+                }}>
+                  {selectedJobIds.size} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  disabled={batchApplying}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: '2px 4px',
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {selectedJobIds.size > 0 ? (
+              <button
+                type="button"
+                onClick={handleApplySelected}
+                disabled={batchApplying}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  background: 'linear-gradient(135deg, #6C63FF 0%, #483dff 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 18px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: batchApplying ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(108, 99, 255, 0.4)',
+                  opacity: batchApplying ? 0.75 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {batchApplying ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Applying ({batchProgress.current}/{batchProgress.total})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    <span>Apply to Selected ({selectedJobIds.size})</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleApplyAll}
+                disabled={unappliedSafeJobs.length === 0 || batchApplying}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  background: unappliedSafeJobs.length === 0 
+                    ? 'rgba(255,255,255,0.06)' 
+                    : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: unappliedSafeJobs.length === 0 ? '#64748b' : 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 18px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: unappliedSafeJobs.length === 0 || batchApplying ? 'not-allowed' : 'pointer',
+                  boxShadow: unappliedSafeJobs.length === 0 ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.35)',
+                  opacity: batchApplying ? 0.75 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+                title={unappliedSafeJobs.length === 0 ? 'No unapplied jobs' : 'Tailor resumes and apply to all unapplied jobs in this list'}
+              >
+                {batchApplying ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Applying ({batchProgress.current}/{batchProgress.total})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} />
+                    <span>Apply All ({unappliedSafeJobs.length})</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
         <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.25)', marginBottom: '12px', padding: '0 4px' }}>
           Discovered Opportunities
         </div>
@@ -474,9 +870,36 @@ export const JobsTable: React.FC = () => {
             const hasScore = typeof job.match_score === 'number';
             const score = hasScore ? Math.round(job.match_score) : 0;
             const isApplied = appliedJobIds.has(job.id);
+            const isSelected = selectedJobIds.has(job.id);
+            const matchedSkills = parseSkillsList(job.matching_skills);
+            const missingSkills = parseSkillsList(job.missing_skills);
 
             return (
-              <div key={job.id} className="job-row">
+              <div
+                key={job.id}
+                className="job-row"
+                style={{
+                  border: isSelected ? '1px solid rgba(108, 99, 255, 0.6)' : undefined,
+                  background: isSelected ? 'rgba(108, 99, 255, 0.08)' : undefined,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', paddingRight: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    disabled={isApplied || batchApplying || applyingJobId === job.id}
+                    onChange={() => toggleSelectJob(job.id)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      accentColor: '#6C63FF',
+                      cursor: isApplied || batchApplying ? 'not-allowed' : 'pointer',
+                      borderRadius: '4px',
+                    }}
+                    title={isApplied ? 'Already applied' : 'Select job to batch apply'}
+                  />
+                </div>
                 <div className="job-logo" style={{ background: logoColor.bg, color: logoColor.color }}>
                   {company.substring(0, 2).toUpperCase()}
                 </div>
@@ -534,6 +957,32 @@ export const JobsTable: React.FC = () => {
                     </span>
                     <span><Clock size={11} /> {formatRelativeTime(job.posted_date || job.created_at)}</span>
                   </div>
+                  {matchedSkills.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      <span style={{ fontSize: '10px', color: '#34d399', fontWeight: 600 }}>Matched:</span>
+                      {matchedSkills.slice(0, 4).map((sk: string) => (
+                        <span
+                          key={sk}
+                          style={{
+                            fontSize: '10px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: 'rgba(52,211,153,0.12)',
+                            color: '#6ee7b7',
+                            border: '1px solid rgba(52,211,153,0.25)',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {sk}
+                        </span>
+                      ))}
+                      {missingSkills.length > 0 && (
+                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                          Missing: {missingSkills.slice(0, 2).join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="score-bar-wrap">
                   <div className="score-bar">
@@ -567,21 +1016,39 @@ export const JobsTable: React.FC = () => {
                     </a>
                   )}
                   <button
-                    onClick={() => handleApply(job.id)}
+                    onClick={() => handleApply(job)}
                     disabled={applyingJobId === job.id || isApplied}
                     style={{
-                      background: isApplied ? 'rgba(74, 222, 128, 0.15)' : 'linear-gradient(135deg, #6C63FF 0%, #483dff 100%)',
+                      background: isApplied
+                        ? 'rgba(74, 222, 128, 0.15)'
+                        : 'linear-gradient(135deg, #6C63FF 0%, #483dff 100%)',
                       color: isApplied ? '#4ADE80' : 'white',
                       border: isApplied ? '1px solid rgba(74, 222, 128, 0.3)' : 'none',
                       borderRadius: '8px',
-                      padding: '6px 12px',
+                      padding: '7px 14px',
                       fontSize: '12px',
                       fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
                       cursor: applyingJobId === job.id || isApplied ? 'not-allowed' : 'pointer',
-                      opacity: applyingJobId === job.id ? 0.7 : 1,
+                      opacity: applyingJobId === job.id ? 0.75 : 1,
+                      boxShadow: isApplied ? 'none' : '0 2px 8px rgba(108, 99, 255, 0.3)',
                     }}
                   >
-                    {isApplied ? 'Applied' : applyingJobId === job.id ? 'Applying...' : 'Apply Now'}
+                    {isApplied ? (
+                      'Applied ✓'
+                    ) : applyingJobId === job.id ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" />
+                        <span>Tailoring & Applying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={12} />
+                        <span>Tailor & Apply</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

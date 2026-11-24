@@ -8,6 +8,7 @@ interface StatsCardProps {
   children?: React.ReactNode;
   className?: string;
   accentColor?: 'blue' | 'green' | 'amber' | 'red' | 'purple';
+  onClick?: () => void;
 }
 
 const accentMap = {
@@ -26,11 +27,15 @@ const StatsCard: React.FC<StatsCardProps> = ({
   children,
   className = '',
   accentColor = 'blue',
+  onClick,
 }) => {
   const accent = accentMap[accentColor];
 
   return (
-    <div className={`neumo-card p-6 flex flex-col ${className}`}>
+    <div
+      onClick={onClick}
+      className={`neumo-card p-6 flex flex-col ${onClick ? 'cursor-pointer hover:scale-[1.01] transition-transform select-none' : ''} ${className}`}
+    >
       {/* Icon Container */}
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 ${accent.bg} ${accent.text}`}>
         {icon}

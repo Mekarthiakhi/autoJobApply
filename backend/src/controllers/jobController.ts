@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { JobRepository } from '../repositories/jobRepository.js';
 import { MatchScoreRepository } from '../repositories/matchScoreRepository.js';
 import { savedSearchRepository } from '../repositories/savedSearchRepository.js';
@@ -34,10 +35,126 @@ export async function getJobStats(req: Request, res: Response) {
   }
 }
 
+export async function ensureCandidateJobMatches(userId: string): Promise<{
+  hasResume: boolean;
+  skills: string[];
+  preferredLocations: string[];
+  targetRoles: string[];
+  minMatchScore: number;
+  scoredCount: number;
+}> {
+  const db = await getDatabase();
+  const resume = await db.get<{ text_content: string; skills: string }>(
+    `SELECT text_content, skills FROM resume_versions WHERE user_id = ? AND is_default = 1
+     UNION ALL
+     SELECT text_content, skills FROM resumes WHERE user_id = ?
+     LIMIT 1`,
+    [userId, userId]
+  );
+  const user = await db.get<{ preferred_locations: string; employment_type: string; min_match_score: number }>(
+    `SELECT preferred_locations, employment_type, min_match_score FROM users WHERE id = ?`,
+    [userId]
+  );
+  const settings = await db.get<{ target_roles: string; target_locations: string; min_salary: string }>(
+    `SELECT target_roles, target_locations, min_salary FROM settings WHERE user_id = ?`,
+    [userId]
+  );
+
+  let candidateSkills: string[] = [];
+  if (resume?.skills) {
+    try {
+      candidateSkills = JSON.parse(resume.skills);
+    } catch {
+      candidateSkills = String(resume.skills).split(',').map((s) => s.trim()).filter(Boolean);
+    }
+  }
+
+  let preferredLocations: string[] = ['Remote'];
+  if (user?.preferred_locations) {
+    try {
+      preferredLocations = JSON.parse(user.preferred_locations);
+    } catch {
+      preferredLocations = [user.preferred_locations];
+    }
+  }
+
+  let targetRoles: string[] = [];
+  if (settings?.target_roles) {
+    try {
+      targetRoles = JSON.parse(settings.target_roles);
+    } catch {}
+  }
+
+  // If candidate has resume or target preferences, score any unscored jobs
+  const unscoredJobs = await db.all<any[]>(
+    `SELECT j.* FROM jobs j
+     LEFT JOIN match_scores ms ON j.id = ms.job_id AND ms.user_id = ?
+     WHERE ms.id IS NULL AND j.status != 'expired'
+     LIMIT 100`,
+    [userId]
+  );
+
+  if (unscoredJobs && unscoredJobs.length > 0) {
+    for (const job of unscoredJobs) {
+      try {
+        const normalized = jobNormalizer.normalize(job);
+        const scoreResult = explainableScorer.scoreJob(normalized, {
+          skills: candidateSkills,
+          targetRoles: targetRoles.length > 0 ? targetRoles : undefined,
+          targetLocations: preferredLocations,
+          minSalary: settings?.min_salary ? parseFloat(settings.min_salary.replace(/[^0-9.]/g, '')) : undefined,
+          prefersRemote: preferredLocations.some((l) => /remote/i.test(l)) || true,
+        });
+
+        const candidateLower = candidateSkills.map((s) => s.toLowerCase());
+        const jobSkills = normalized.requiredSkills || [];
+        const matching = jobSkills.filter((js) => candidateLower.some((cs) => cs.includes(js.toLowerCase()) || js.toLowerCase().includes(cs)));
+        const missing = jobSkills.filter((js) => !candidateLower.some((cs) => cs.includes(js.toLowerCase()) || js.toLowerCase().includes(cs)));
+
+        const scoreId = uuidv4();
+        await db.run(
+          `INSERT INTO match_scores (id, user_id, job_id, match_score, missing_skills, matching_skills, strengths, recommendation, analyzed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT (user_id, job_id) DO UPDATE SET
+             match_score = excluded.match_score,
+             missing_skills = excluded.missing_skills,
+             matching_skills = excluded.matching_skills,
+             strengths = excluded.strengths,
+             recommendation = excluded.recommendation,
+             analyzed_at = CURRENT_TIMESTAMP`,
+          [
+            scoreId,
+            userId,
+            job.id,
+            scoreResult.totalScore,
+            JSON.stringify(missing),
+            JSON.stringify(matching),
+            JSON.stringify(scoreResult.factors.filter((f) => f.score >= f.maxScore * 0.7).map((f) => f.name)),
+            scoreResult.recommendation,
+          ]
+        );
+      } catch (err) {
+        console.warn(`Could not score job ${job.id} for user ${userId}`, err);
+      }
+    }
+  }
+
+  return {
+    hasResume: Boolean(resume),
+    skills: candidateSkills,
+    preferredLocations,
+    targetRoles,
+    minMatchScore: user?.min_match_score || 55,
+    scoredCount: unscoredJobs?.length || 0,
+  };
+}
+
 export async function getJobs(req: Request, res: Response) {
   try {
     const userId = req.userId;
     if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const profile = await ensureCandidateJobMatches(userId);
 
     const {
       keyword,
@@ -48,6 +165,7 @@ export async function getJobs(req: Request, res: Response) {
       source,
       status,
       minMatchScore,
+      profileMatchedOnly,
       limit = '50',
       offset = '0',
     } = req.query;
@@ -62,13 +180,17 @@ export async function getJobs(req: Request, res: Response) {
         source: source as string,
         status: status as string,
         minMatchScore: minMatchScore ? parseInt(minMatchScore as string) : undefined,
+        profileMatchedOnly: profileMatchedOnly === 'true',
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
       },
       userId
     );
 
-    res.json(result);
+    res.json({
+      ...result,
+      candidateProfile: profile,
+    });
   } catch (error) {
     console.error('Failed to fetch jobs:', error);
     res.status(500).json({ error: 'Failed to fetch jobs' });

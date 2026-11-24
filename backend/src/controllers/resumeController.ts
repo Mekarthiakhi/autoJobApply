@@ -7,6 +7,7 @@ const pdf = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }
 import { resumeService } from '../services/resumeService.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getDatabase } from '../config/database.js';
+import { ensureCandidateJobMatches } from './jobController.js';
 
 export async function uploadResume(req: Request, res: Response) {
   try {
@@ -64,6 +65,13 @@ export async function uploadResume(req: Request, res: Response) {
       textContent,
       extractedData
     );
+
+    // Automatically calculate profile match scores across existing jobs for candidate
+    try {
+      await ensureCandidateJobMatches(userId);
+    } catch (scoreErr) {
+      console.warn('Failed to compute initial job match scores on resume upload:', scoreErr);
+    }
 
     res.status(201).json({
       message: 'Resume uploaded and analyzed successfully',

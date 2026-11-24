@@ -42,6 +42,7 @@ export interface JobFilterCriteria {
   source?: JobPlatform | string;
   status?: JobStatus | string;
   minMatchScore?: number;
+  profileMatchedOnly?: boolean;
   limit?: number;
   offset?: number;
 }

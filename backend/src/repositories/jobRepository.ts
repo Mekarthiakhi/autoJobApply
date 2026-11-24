@@ -183,6 +183,11 @@ export class JobRepository {
       params.push(filters.minMatchScore);
     }
 
+    // Filter profile matched only
+    if (userId && filters.profileMatchedOnly) {
+      conditions.push(`(ms.match_score >= 50 AND ms.recommendation != 'Skip')`);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Count query
@@ -207,7 +212,7 @@ export class JobRepository {
         FROM jobs j
         LEFT JOIN match_scores ms ON j.id = ms.job_id AND ms.user_id = ?
         ${whereClause}
-        ORDER BY ms.match_score DESC, j.posted_date DESC, j.created_at DESC
+        ORDER BY CASE WHEN ms.match_score IS NOT NULL THEN 0 ELSE 1 END, ms.match_score DESC, j.posted_date DESC, j.created_at DESC
         LIMIT ? OFFSET ?
       `;
       dataParams = [userId, ...params, limit, offset];
